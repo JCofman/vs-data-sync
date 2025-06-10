@@ -11,6 +11,7 @@ export type InfoTreeItem = TreeItem & {
     patternName?: string; // for pattern level
     databaseName?: string; // for database level
     tableName?: string; // for table level
+    configFilePath?: string;
     parent?: InfoTreeItem;
 };
 
@@ -31,11 +32,13 @@ export class InfoProvider implements TreeDataProvider<InfoTreeItem> {
     async getChildren(element?: InfoTreeItem): Promise<InfoTreeItem[]> {
         // Parse configuration
         const configManager = ConfigManager.getInstance();
+        let configFilePath: string | undefined = undefined;
         let configContent: DataSyncConfig | undefined = undefined;
         if (store.isImportSession) {
+            configFilePath = configManager.getConfigFilePath();
             configContent = configManager.getConfigContent();
         } else {
-            const configFilePath = ConfigManager.getInstance().getDefaultConfigFilePath();
+            configFilePath = configManager.getDefaultConfigFilePath();
             if (await fs.exists(configFilePath)) {
                 configContent = await fs.readJson(configFilePath);
             }
@@ -46,7 +49,7 @@ export class InfoProvider implements TreeDataProvider<InfoTreeItem> {
 
         // Generate parent items if no element is passed.
         if (!element) {
-            const parentItems = this.generateParent(configContent);
+            const parentItems = this.generateParent(configFilePath, configContent);
             if (!parentItems || parentItems.length <= 0) {
                 return [];
             }
@@ -61,7 +64,7 @@ export class InfoProvider implements TreeDataProvider<InfoTreeItem> {
         return childItems;
     }
 
-    private generateParent = (configuration: DataSyncConfig): InfoTreeItem[] => {
+    private generateParent = (configFilePath: string | undefined, configuration: DataSyncConfig): InfoTreeItem[] => {
         const migrateName = store.migrateName || 'none';
         return Object.keys(configuration.patterns).map((pattern): InfoTreeItem => {
             return {
@@ -72,6 +75,7 @@ export class InfoProvider implements TreeDataProvider<InfoTreeItem> {
                 tooltip: `Session: ${migrateName}\nPattern: ${pattern}`,
                 contextValue: store.isImportSession ? 'import-pattern-context' : 'pattern-context',
                 iconPath: new ThemeIcon('briefcase'),
+                configFilePath,
                 collapsibleState: TreeItemCollapsibleState.Collapsed,
 
                 // Custom field

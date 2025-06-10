@@ -1,17 +1,50 @@
 import fs from 'fs-extra';
-import { commands, window } from 'vscode';
+import { commands, Selection, TextDocument, Uri, window, workspace } from 'vscode';
 import { ConfigManager } from '../utils/configManager';
 import { constants, extCommands } from '../utils/constants';
 import { logger } from '../utils/logger';
-import { showErrorMessageWithDetail, showTextDocument } from '../utils/utils';
+import { showErrorMessageWithDetail } from '../utils/utils';
 
-export const showConfigAsync = async (): Promise<void> => {
+const escapeRegExp = (input: string) => {
+    return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const getKeywordRegex = (keywords: string[]): RegExp => {
+    const enhanceKeywords = keywords.map((keyword) => {
+        let enhanceKeyword = escapeRegExp(keyword)
+            .replace(`: `, `: ?`) // match space or no space
+            .replace(`"`, `(?:'|")`); // match single quote or double quote
+        return enhanceKeyword;
+    });
+    return new RegExp(enhanceKeywords.join('|'), 'gm');
+};
+
+const openConfigByPattern = async (settingFilePath: string, pattern: string): Promise<void> => {
+    const sessionFileUri = Uri.file(settingFilePath);
+    const document: TextDocument = await workspace.openTextDocument(sessionFileUri);
+    const content = document.getText();
+
+    // Navigate to the session configuration
+    const regex = getKeywordRegex([pattern]);
+    const matches = [...content.matchAll(regex)];
+    let selections: Selection[] = [];
+    matches.forEach((match) => {
+        if (match.index) {
+            const startPosition = document.positionAt(match.index);
+            const endPosition = document.positionAt(match.index + match[0].length);
+            selections.push(new Selection(startPosition, endPosition));
+        }
+    });
+    await window.showTextDocument(document, { selection: selections?.[0] });
+};
+
+export const showConfigAsync = async (settingFilePath: string, pattern: string): Promise<void> => {
     try {
         // If config file is existed, show the text document on vscode
-        const configFilePath = ConfigManager.getInstance().getDefaultConfigFilePath();
+        const configFilePath = settingFilePath || ConfigManager.getInstance().getDefaultConfigFilePath();
         const isConfigFileExist = await fs.exists(configFilePath);
         if (isConfigFileExist) {
-            showTextDocument(configFilePath);
+            openConfigByPattern(configFilePath, pattern);
             return;
         }
 

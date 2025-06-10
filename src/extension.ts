@@ -28,9 +28,6 @@ export async function activate(context: ExtensionContext) {
 
     // Global command
     context.subscriptions.push(
-        commands.registerCommand(extCommands.showConfiguration, async () => {
-            await showConfigAsync();
-        }),
         commands.registerCommand(extCommands.generateConfiguration, async (overwriteConfiguration: boolean = false) => {
             await generateConfigAsync(overwriteConfiguration);
         })
@@ -47,6 +44,12 @@ export async function activate(context: ExtensionContext) {
         commands.registerCommand(extCommands.processInfo, async () => logger.show(true)),
         commands.registerCommand(extCommands.importAnalyzeData, async () => {
             await analyzeDataOnImportAsync();
+        }),
+        commands.registerCommand(extCommands.showConfiguration, async (treeItem: InfoTreeItem) => {
+            logger.info(
+                `Show configuration from '${treeItem.configFilePath}' in the section '${treeItem.patternName}'`
+            );
+            await showConfigAsync(treeItem.configFilePath || '', treeItem.patternName || '');
         }),
         commands.registerCommand(extCommands.analyzeData, async (treeItem: InfoTreeItem) => {
             logger.info(`Click on info tree item '${treeItem.patternName}'`);

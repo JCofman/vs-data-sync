@@ -54,15 +54,18 @@
             "data-sync-activity-bar": [
                 {
                     "id": "data-sync-info",
-                    "name": "Info"
+                    "name": "Info",
+                    "icon": "info"
                 },
                 {
                     "id": "data-sync-compare",
-                    "name": "Compare"
+                    "name": "Compare",
+                    "icon": "compare-changes"
                 },
                 {
                     "id": "data-sync-migrate",
-                    "name": "Migrate"
+                    "name": "Migrate",
+                    "icon": "combine"
                 }
             ]
         },
@@ -216,14 +219,9 @@
                     "group": "navigation@2"
                 },
                 {
-                    "command": "data-sync.show-config",
-                    "when": "view == data-sync-info",
-                    "group": "navigation@3"
-                },
-                {
                     "command": "data-sync.refresh-info",
                     "when": "view == data-sync-info",
-                    "group": "navigation@4"
+                    "group": "navigation@3"
                 },
                 {
                     "command": "data-sync.refresh-compare",
@@ -238,9 +236,14 @@
             ],
             "view/item/context": [
                 {
+                    "command": "data-sync.show-config",
+                    "when": "view == data-sync-info && (viewItem == pattern-context || viewItem == import-pattern-context)",
+                    "group": "inline@1"
+                },
+                {
                     "command": "data-sync.analyze-data",
                     "when": "view == data-sync-info && viewItem == pattern-context",
-                    "group": "inline@1"
+                    "group": "inline@2"
                 },
                 {
                     "command": "data-sync.side-by-side-diff",
