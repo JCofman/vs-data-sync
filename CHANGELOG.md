@@ -1,5 +1,11 @@
 # data-sync
 
+## 1.0.31
+
+### Patch Changes
+
+- 8f8e4e2: open setting by pattern
+
 ## 1.0.30
 
 ### Patch Changes
