@@ -29,10 +29,10 @@ export class MssqlProvider implements DatabaseProvider {
                     trustedConnection: true
                 };
                 this.pool = await new mssqlV8.ConnectionPool(parsed).connect();
-                this.driver = mssqlV8; // <-- Set driver
+                this.driver = mssqlV8;
             } else {
                 this.pool = await new mssql.ConnectionPool(this.config.connectionString).connect();
-                this.driver = mssql; // <-- Set driver
+                this.driver = mssql;
             }
         } else {
             this.pool = await new mssql.ConnectionPool({
@@ -47,7 +47,7 @@ export class MssqlProvider implements DatabaseProvider {
                     encrypt: this.config.mssqlOptions?.encrypt ?? true
                 }
             }).connect();
-            this.driver = mssql; // <-- Set driver
+            this.driver = mssql;
         }
     }
 
