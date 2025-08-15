@@ -13,6 +13,7 @@ export const configTemplate: DataSyncConfig = {
     patterns: {
         patternName: {
             source: {
+                type: 'postgres',
                 database: '',
                 host: '',
                 port: 5432,
@@ -20,6 +21,7 @@ export const configTemplate: DataSyncConfig = {
                 password: ''
             },
             target: {
+                type: 'postgres',
                 database: '',
                 host: '',
                 port: 5432,

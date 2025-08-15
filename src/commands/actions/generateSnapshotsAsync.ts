@@ -1,48 +1,13 @@
 import fs from 'fs-extra';
 import { EOL } from 'node:os';
-import pg from 'pg';
-import { QueryIterablePool } from 'pg-iterator';
 import { FileManager, SnapshotType } from '../../utils/fileManager';
 import { logger } from '../../utils/logger';
-import { PatternConfig, PatternSession, TableConfig, getDatabaseInfo, getTabWidth } from '../../utils/utils';
-
-const getPrimaryKeys = async (options: { pool: pg.Pool; table: TableConfig }): Promise<string[]> => {
-    const { pool, table } = options;
-    const rawQuery = `
-        SELECT c.column_name
-        FROM information_schema.table_constraints t
-            JOIN information_schema.constraint_column_usage c
-            ON c.constraint_name = t.constraint_name
-        WHERE t.constraint_type = 'PRIMARY KEY' AND c.table_name = '${table.name}'`;
-    const result = await pool.query(rawQuery);
-    const primaryKeys = [];
-    for (const row of result.rows) {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        const { column_name } = row as { column_name: string };
-        primaryKeys.push(column_name);
-    }
-    return primaryKeys;
-};
-
-const getColumnNames = async (options: { pool: pg.Pool; table: TableConfig }): Promise<string[]> => {
-    const { pool, table } = options;
-    const rawQuery = `
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = '${table.name}'
-        ORDER BY ordinal_position`;
-    const result = await pool.query(rawQuery);
-    const tableColumns = [];
-    for await (const row of result.rows) {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        const { column_name } = row as { column_name: string };
-        tableColumns.push(column_name);
-    }
-    return tableColumns;
-};
+import { PatternConfig, PatternSession, TableConfig, getTabWidth } from '../../utils/utils';
+import { createDatabaseProvider } from '../../utils/database/databaseProviderFactory';
+import { DatabaseProvider } from '../../utils/database/databaseProvider';
 
 export type GenerateSnapshotOptions = {
-    pool: pg.Pool;
+    dbProvider: DatabaseProvider;
     fileManager: FileManager;
     snapshotType: SnapshotType;
     formatLine?: boolean;
@@ -51,10 +16,12 @@ export type GenerateSnapshotOptions = {
 };
 
 export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Promise<void> => {
-    const { pool, fileManager, tables, snapshotType, session, formatLine = false } = options;
+    const { dbProvider, fileManager, tables, snapshotType, session, formatLine = false } = options;
     const tab = getTabWidth();
-    const qs = new QueryIterablePool(pool);
+
     try {
+        await dbProvider.connect();
+
         for (let i = 0; i < tables.length; i++) {
             const table = tables[i];
 
@@ -70,14 +37,14 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
             // Get primary key
             let primaryKeys = table.primaryKeys;
             if (!primaryKeys || primaryKeys.length <= 0) {
-                primaryKeys = await getPrimaryKeys({ pool, table });
+                primaryKeys = await dbProvider.getPrimaryKeys(table);
             }
             session.plan[table.name].primaryKeys = primaryKeys;
 
             // Get columns for table
             let tableColumns = table.columns;
             if (!tableColumns || tableColumns.length <= 0) {
-                tableColumns = await getColumnNames({ pool, table });
+                tableColumns = await dbProvider.getColumnNames(table);
             }
             session.plan[table.name].columns = tableColumns;
 
@@ -88,8 +55,14 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
             }
 
             // Generate select query
-            const selectColumns = tableColumns.length > 0 ? tableColumns.map((tc) => `"${tc}"`).join(', ') : '*';
-            const selectQuery = `SELECT ${selectColumns} FROM ${table.name}`;
+            const selectColumns =
+                tableColumns.length > 0 ? tableColumns.map((tc) => dbProvider.escapeIdentifier(tc)).join(', ') : '*';
+
+            const tableIdentifier = table.schema
+                ? `${dbProvider.escapeIdentifier(table.schema)}.${dbProvider.escapeIdentifier(table.name)}`
+                : dbProvider.escapeIdentifier(table.name);
+
+            const selectQuery = `SELECT ${selectColumns} FROM ${tableIdentifier}`;
             const where = table.where ? `WHERE ${table.where}` : '';
             const orderBy = table.orderBy ? `ORDER BY ${table.orderBy}` : '';
             const rawQuery = [selectQuery, where, orderBy].filter(Boolean).join(' ');
@@ -99,19 +72,15 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
             await fs.remove(snapshotPath);
             await fs.ensureFile(snapshotPath);
 
-            // Get stream data from table
+            // Stream data from table to file
             logger.info(`Execute '${rawQuery}' at '${table.name}' table to create snapshot.`);
-            const rows = qs.query(rawQuery);
 
-            // Stream to snapshot file
-            logger.info(`Stream ${table.name} data to ${snapshotPath} ...`);
-            for await (const row of rows) {
-                // TODO: format json line to easy diff with JSONL
-                // const rowContent = formatLine ? JSON.stringify(row, null, tab) : JSON.stringify(row);
+            for await (const row of dbProvider.queryStream(rawQuery)) {
                 const rowContent = JSON.stringify(row);
                 fs.appendFileSync(snapshotPath, rowContent.concat(EOL), { encoding: 'utf-8' });
             }
-            logger.info(`The ${table.name} data was successfully streamed .`);
+
+            logger.info(`The ${table.name} data was successfully streamed.`);
         }
 
         // Save table detail
@@ -119,19 +88,10 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
         await fs.outputJSON(sessionPath, session, { spaces: tab });
         logger.info(`The ${sessionPath} was successfully created.`);
     } finally {
-        if (qs) {
-            qs.release();
-        }
+        await dbProvider.disconnect();
     }
 };
 
-/**
- * Generate snapshot files
- * - migrations/<migrate-name>/snapshots/original
- * - migrations/<migrate-name>/snapshots/modified
- * Create new migrate info file
- * - migrations/<migrate-name>/session.json
- */
 export const generateSnapshotAsync = async (options: {
     fileManager: FileManager;
     selectedPattern: string;
@@ -150,11 +110,11 @@ export const generateSnapshotAsync = async (options: {
     };
 
     // Generate snapshot for original database (target apply)
-    const targetPool = new pg.Pool(target);
-    logger.info(`Generating target snapshot with db connection '${getDatabaseInfo(target)}'....`);
+    const targetProvider = createDatabaseProvider(target);
+    logger.info(`Generating target snapshot with db connection '${targetProvider.getDatabaseInfo()}'....`);
     await createSnapshotFiles({
         fileManager,
-        pool: targetPool,
+        dbProvider: targetProvider,
         snapshotType: SnapshotType.original,
         formatLine,
         session,
@@ -163,11 +123,11 @@ export const generateSnapshotAsync = async (options: {
     logger.info('The target snapshot files was successfully generated');
 
     // Generate snapshot for modified database (source changed)
-    const sourcePool = new pg.Pool(source);
-    logger.info(`Generating source snapshot with db connection '${getDatabaseInfo(source)}'....`);
+    const sourceProvider = createDatabaseProvider(source);
+    logger.info(`Generating source snapshot with db connection '${sourceProvider.getDatabaseInfo()}'....`);
     await createSnapshotFiles({
         fileManager,
-        pool: sourcePool,
+        dbProvider: sourceProvider,
         snapshotType: SnapshotType.modified,
         formatLine,
         session,

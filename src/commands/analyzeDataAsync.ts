@@ -136,6 +136,11 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
             showIncorrectConfigWarning(selectedPattern);
             return;
         }
+        // Determine dbType from pattern config (default to 'postgres')
+        const dbType: 'postgres' | 'mssql' =
+            (pattern?.source?.type as 'postgres' | 'mssql') ||
+            (pattern?.target?.type as 'postgres' | 'mssql') ||
+            'postgres';
 
         // Show output panel
         const config = workspace.getConfiguration(APP_ID) as ExtensionConfiguration;
@@ -152,14 +157,14 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
             },
             async (progress) => {
                 // Show password input if not defined
-                if (pattern.source.password === undefined) {
+                if (pattern.source.password === undefined && pattern.source.connectionString === undefined) {
                     const inputPassword = await showInputPassword('source', pattern.source);
                     if (typeof inputPassword === 'undefined') {
                         return false;
                     }
                     pattern.source.password = inputPassword;
                 }
-                if (pattern.target.password === undefined) {
+                if (pattern.target.password === undefined && pattern.target.connectionString === undefined) {
                     const inputPassword = await showInputPassword('target', pattern.target);
                     if (typeof inputPassword === 'undefined') {
                         return false;
@@ -180,7 +185,7 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
                 }
 
                 // Store the password if connect successful
-                store.sourcePassword = pattern.source.password.toString();
+                store.sourcePassword = pattern.source?.password?.toString();
 
                 // Check the target database connection config
                 if (config.checkDatabaseConnection) {
@@ -195,7 +200,7 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
                 }
 
                 // Store the password if connect successful
-                store.targetPassword = pattern.target.password.toString();
+                store.targetPassword = pattern.target?.password?.toString();
 
                 // Generate snapshot files (read database and output to file)
                 showProgressReport(progress, 'Generating all snapshot files...');
@@ -221,7 +226,7 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
 
                 // Generate plan files (from diff files, generate to plan)
                 showProgressReport(progress, 'Generating plan files...');
-                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables });
+                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables, dbType });
                 if (!isGeneratePlanSuccess) {
                     showProgressWarn('Failed to generate plan files!');
                     return;

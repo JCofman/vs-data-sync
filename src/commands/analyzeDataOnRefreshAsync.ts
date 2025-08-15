@@ -42,7 +42,14 @@ export const analyzeDataOnRefreshAsync = async (selectedPattern: string, migrate
 
         // Init configuration
         const { patterns, verbose } = configContent;
+
         const pattern = patterns[selectedPattern];
+
+        const dbType: 'postgres' | 'mssql' =
+            (pattern?.source?.type as 'postgres' | 'mssql') ||
+            (pattern?.target?.type as 'postgres' | 'mssql') ||
+            'postgres';
+
         const tables = pattern?.diff?.tables;
         if (!tables || tables.length <= 0) {
             showIncorrectConfigWarning();
@@ -81,7 +88,7 @@ export const analyzeDataOnRefreshAsync = async (selectedPattern: string, migrate
 
                 // Generate plan files (from diff files, generate to plan)
                 showProgressReport(progress, 'Generating plan files...');
-                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables });
+                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables, dbType });
                 if (!isGeneratePlanSuccess) {
                     showProgressWarn('Failed to generate plan files!');
                     return;

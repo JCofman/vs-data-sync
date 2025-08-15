@@ -141,6 +141,11 @@ export const analyzeDataOnImportAsync = async (): Promise<void> => {
             showIncorrectConfigWarning(selectedPattern);
             return;
         }
+        // Determine dbType from pattern config (default to 'postgres')
+        const dbType: 'postgres' | 'mssql' =
+            (pattern?.source?.type as 'postgres' | 'mssql') ||
+            (pattern?.target?.type as 'postgres' | 'mssql') ||
+            'postgres';
 
         // Show output panel
         const config = workspace.getConfiguration(APP_ID) as ExtensionConfiguration;
@@ -167,7 +172,7 @@ export const analyzeDataOnImportAsync = async (): Promise<void> => {
 
                 // Generate plan files (from diff files, generate to plan)
                 showProgressReport(progress, 'Generating plan files...');
-                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables });
+                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables, dbType });
                 if (!isGeneratePlanSuccess) {
                     showProgressWarn('Failed to generate plan files!');
                     return;

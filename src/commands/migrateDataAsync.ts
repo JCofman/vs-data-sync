@@ -1,6 +1,9 @@
 import fs from 'fs-extra';
 import { EOL } from 'node:os';
 import pg, { PoolConfig } from 'pg';
+import * as mssql from 'mssql';
+import * as mssqlV8 from 'mssql/msnodesqlv8';
+
 import { ProgressLocation, QuickPickItem, window, workspace } from 'vscode';
 import { ExtensionConfiguration } from '../extension';
 import { ConfigManager } from '../utils/configManager';
@@ -47,7 +50,294 @@ const handleWarningQueries = (
     }
 };
 
-export const executeMigrate = async (options: {
+// MSSQL helpers for IDENTITY_INSERT handling
+const isMssqlIdentityInsertError = (err: unknown): boolean => {
+    const anyErr = err as any;
+    const number = anyErr?.number as number | undefined;
+    const message = (anyErr?.message as string | undefined)?.toLowerCase() || '';
+    return number === 544 || message.includes('identity_insert is set to off');
+};
+
+const extractInsertTargetTable = (sql: string): string | undefined => {
+    // Captures object name after INSERT INTO up to first space or '('
+    // Works with [dbo].[Table], dbo.Table, [Table], Table
+    const m = /^\s*insert\s+into\s+([^\s(]+)\s*/i.exec(sql);
+    return m?.[1];
+};
+
+// Normalize unquoted boolean literals to BIT (1/0) for SQL Server.
+// Skips single-quoted strings, bracketed identifiers, line and block comments.
+const normalizeBooleanLiteralsForMssql = (sql: string): string => {
+    let out = '';
+    let i = 0;
+    const n = sql.length;
+    let inSingle = false;
+    let inBracketIdent = false;
+    let inLineComment = false;
+    let inBlockComment = false;
+
+    const isWordChar = (c: string) => /[A-Za-z0-9_]/.test(c);
+
+    while (i < n) {
+        const ch = sql[i];
+        const next = i + 1 < n ? sql[i + 1] : '';
+
+        // End line comment
+        if (inLineComment) {
+            out += ch;
+            if (ch === '\n') inLineComment = false;
+            i++;
+            continue;
+        }
+
+        // End block comment
+        if (inBlockComment) {
+            out += ch;
+            if (ch === '*' && next === '/') {
+                out += next;
+                i += 2;
+                inBlockComment = false;
+            } else {
+                i++;
+            }
+            continue;
+        }
+
+        // Inside quoted string
+        if (inSingle) {
+            out += ch;
+            if (ch === "'") {
+                // Escaped '' stays in string
+                if (next === "'") {
+                    out += next;
+                    i += 2;
+                    continue;
+                }
+                inSingle = false;
+            }
+            i++;
+            continue;
+        }
+
+        // Inside bracketed identifier
+        if (inBracketIdent) {
+            out += ch;
+            if (ch === ']') inBracketIdent = false;
+            i++;
+            continue;
+        }
+
+        // Detect starts of comments/strings/identifiers
+        if (ch === '-' && next === '-') {
+            out += ch + next;
+            i += 2;
+            inLineComment = true;
+            continue;
+        }
+        if (ch === '/' && next === '*') {
+            out += ch + next;
+            i += 2;
+            inBlockComment = true;
+            continue;
+        }
+        if (ch === "'") {
+            out += ch;
+            i++;
+            inSingle = true;
+            continue;
+        }
+        if (ch === '[') {
+            out += ch;
+            i++;
+            inBracketIdent = true;
+            continue;
+        }
+
+        // Replace standalone true/false
+        if (/[A-Za-z_]/.test(ch)) {
+            let j = i;
+            while (j < n && isWordChar(sql[j])) j++;
+            const word = sql.slice(i, j);
+            const prev = i > 0 ? sql[i - 1] : '';
+            const nextCh = j < n ? sql[j] : '';
+            const isBoundaryLeft = !isWordChar(prev);
+            const isBoundaryRight = !isWordChar(nextCh);
+            if (isBoundaryLeft && isBoundaryRight) {
+                const lw = word.toLowerCase();
+                if (lw === 'true') {
+                    out += '1';
+                    i = j;
+                    continue;
+                }
+                if (lw === 'false') {
+                    out += '0';
+                    i = j;
+                    continue;
+                }
+            }
+            // Not a boolean literal; copy as-is
+            out += word;
+            i = j;
+            continue;
+        }
+
+        // Default: copy char
+        out += ch;
+        i++;
+    }
+
+    return out;
+};
+
+// Add a new executeMigrateMssql function
+const executeMigrateMssql = async (options: {
+    poolConfig: any;
+    migrateConfig?: MigrateConfig;
+    migrateUpLines: string[];
+}): Promise<{ insert: number; update: number; delete: number; error?: unknown }> => {
+    const { poolConfig, migrateConfig, migrateUpLines } = options;
+
+    // Pick driver like MssqlProvider
+    let driver: typeof mssql | typeof mssqlV8 = mssql;
+    let pool: mssql.ConnectionPool | mssqlV8.ConnectionPool | undefined = undefined;
+    let transaction: mssql.Transaction | mssqlV8.Transaction | undefined = undefined;
+
+    let rowAffected = {
+        insert: 0,
+        update: 0,
+        delete: 0
+    };
+
+    try {
+        if (poolConfig.connectionString) {
+            const parsed = mssql.ConnectionPool.parseConnectionString(poolConfig.connectionString);
+            const hasUser = !!parsed.user;
+            const hasPassword = !!parsed.password;
+
+            if (!hasUser || !hasPassword) {
+                // Switch to msnodesqlv8 (Windows Auth)
+                parsed.driver = 'msnodesqlv8';
+                parsed.options = {
+                    ...parsed.options,
+                    trustServerCertificate: true,
+                    trustedConnection: true
+                };
+                pool = await new mssqlV8.ConnectionPool(parsed).connect();
+                driver = mssqlV8;
+            } else {
+                pool = await new mssql.ConnectionPool(poolConfig.connectionString).connect();
+                driver = mssql;
+            }
+        } else {
+            // Standard config object
+            pool = await new mssql.ConnectionPool({
+                server: poolConfig.host,
+                port: poolConfig.port,
+                user: poolConfig.user,
+                password: poolConfig.password,
+                database: poolConfig.database,
+                domain: poolConfig.domain,
+                options: {
+                    trustServerCertificate: poolConfig.mssqlOptions?.trustServerCertificate ?? true,
+                    encrypt: poolConfig.mssqlOptions?.encrypt ?? true
+                }
+            }).connect();
+            driver = mssql;
+        }
+
+        transaction = new driver.Transaction(pool);
+        await transaction.begin();
+
+        const request = new driver.Request(transaction);
+
+        const noAffectedQueries: { rawQuery: string; affected: number }[] = [];
+        const multiAffectedQueries: { rawQuery: string; affected: number }[] = [];
+
+        for (let i = 0; i < migrateUpLines.length; i++) {
+            const rawQuery = migrateUpLines[i].trim();
+            const isInsert = isInsertQuery(rawQuery);
+            const isUpdate = isUpdateQuery(rawQuery);
+            const isDelete = isDeleteQuery(rawQuery);
+
+            const isBlankLine = rawQuery === '';
+            const isCommentLine = rawQuery.startsWith('--');
+            if (isBlankLine || isCommentLine) {
+                continue;
+            }
+
+            const preparedQuery = normalizeBooleanLiteralsForMssql(rawQuery);
+
+            logger.info(`Execute '${rawQuery}' to migrate...`);
+
+            let result: any;
+            try {
+                result = await request.query(preparedQuery);
+            } catch (err) {
+                // Retry INSERT with IDENTITY_INSERT if needed
+                if (isInsert && isMssqlIdentityInsertError(err)) {
+                    const target = extractInsertTargetTable(preparedQuery);
+                    if (!target) throw err;
+                    logger.info(`Retrying with IDENTITY_INSERT ON for ${target}...`);
+                    await request.query(`SET IDENTITY_INSERT ${target} ON;`);
+                    try {
+                        result = await request.query(preparedQuery);
+                    } finally {
+                        // Best-effort turn OFF; let transaction rollback if this fails
+                        try {
+                            await request.query(`SET IDENTITY_INSERT ${target} OFF;`);
+                        } catch {
+                            /* noop */
+                        }
+                    }
+                } else {
+                    throw err;
+                }
+            }
+
+            const rowCount = Array.isArray(result.rowsAffected)
+                ? result.rowsAffected[0]
+                : (result.rowsAffected as number);
+
+            if (isInsert) rowAffected.insert++;
+            if (isUpdate) rowAffected.update++;
+            if (isDelete) rowAffected.delete++;
+
+            if ((rowCount ?? 0) <= 0) {
+                noAffectedQueries.push({ rawQuery, affected: rowCount ?? 0 });
+            }
+            if ((rowCount ?? 0) >= 2) {
+                multiAffectedQueries.push({ rawQuery, affected: rowCount ?? 0 });
+            }
+
+            logger.info(`The '${rawQuery}' was successful migrated!`);
+        }
+
+        if (noAffectedQueries.length > 0) {
+            const message = `The query was no affected to database:`;
+            handleWarningQueries(noAffectedQueries, migrateConfig?.noRowAffected || 'throw', message);
+        }
+        if (multiAffectedQueries.length > 0) {
+            const message = `The query was multiple affected to database:`;
+            handleWarningQueries(multiAffectedQueries, migrateConfig?.multipleRowAffected || 'throw', message);
+        }
+
+        await transaction.commit();
+        return rowAffected;
+    } catch (error) {
+        if (transaction) {
+            logger.error(`Failed to migrate data. Starting rollback data...`, error);
+            await transaction.rollback();
+            logger.info(`The data was successful rollback!`);
+        }
+        return { ...rowAffected, error };
+    } finally {
+        if (pool) {
+            await pool.close();
+        }
+    }
+};
+
+export const executeMigratePostgres = async (options: {
     poolConfig: PoolConfig;
     migrateConfig?: MigrateConfig;
     migrateUpLines: string[];
@@ -240,11 +530,30 @@ export const migrateDataAsync = async (migrateFilePath: string, systemInfo?: Sys
                 // Execute migrate
                 showProgressReport(progress, `Starting migrate data...`);
                 logger.info(`Migrate to target with db connection '${getDatabaseInfo(pattern.target)}'....`);
-                const rowAffected = await executeMigrate({
-                    migrateUpLines,
-                    migrateConfig: pattern.migrate,
-                    poolConfig: pattern.target
-                });
+                const dbType = pattern.target.type;
+                let rowAffected;
+                if (dbType === 'mssql') {
+                    rowAffected = await executeMigrateMssql({
+                        migrateUpLines,
+                        migrateConfig: pattern.migrate,
+                        poolConfig: pattern.target
+                    });
+                } else {
+                    rowAffected = await executeMigratePostgres({
+                        migrateUpLines,
+                        migrateConfig: pattern.migrate,
+                        poolConfig: pattern.target
+                    });
+                }
+
+                if (rowAffected.error) {
+                    showErrorMessageWithDetail(
+                        `Failed to migrate data. The data will be rollback successful!`,
+                        rowAffected.error
+                    );
+                    return false;
+                }
+
                 if (rowAffected.error) {
                     showErrorMessageWithDetail(
                         `Failed to migrate data. The data will be rollback successful!`,

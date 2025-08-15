@@ -48,6 +48,7 @@ Get it from [Visual Studio Marketplace](https://marketplace.visualstudio.com/ite
     "patternName": {
         // Your source database connection section
         "source": {
+		    "type": "postgres", // Or mssql
             "user": string,
             "password": string,
             "host": string,
@@ -90,6 +91,7 @@ Get it from [Visual Studio Marketplace](https://marketplace.visualstudio.com/ite
 
         // Your target database connection section
         "target": {
+            "type": "postgres", // Or mssql
             "user": string,
             "password": string,
             "host": string,
