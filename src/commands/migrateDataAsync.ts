@@ -67,7 +67,7 @@ const extractInsertTargetTable = (sql: string): string | undefined => {
 
 // Normalize unquoted boolean literals to BIT (1/0) for SQL Server.
 // Skips single-quoted strings, bracketed identifiers, line and block comments.
-const normalizeBooleanLiteralsForMssql = (sql: string): string => {
+export const normalizeBooleanLiteralsForMssql = (sql: string): string => {
     let out = '';
     let i = 0;
     const n = sql.length;
@@ -197,7 +197,6 @@ const executeMigrateMssql = async (options: {
 }): Promise<{ insert: number; update: number; delete: number; error?: unknown }> => {
     const { poolConfig, migrateConfig, migrateUpLines } = options;
 
-    // Pick driver like MssqlProvider
     let driver: typeof mssql | typeof mssqlV8 = mssql;
     let pool: mssql.ConnectionPool | mssqlV8.ConnectionPool | undefined = undefined;
     let transaction: mssql.Transaction | mssqlV8.Transaction | undefined = undefined;
@@ -215,7 +214,6 @@ const executeMigrateMssql = async (options: {
             const hasPassword = !!parsed.password;
 
             if (!hasUser || !hasPassword) {
-                // Switch to msnodesqlv8 (Windows Auth)
                 parsed.driver = 'msnodesqlv8';
                 parsed.options = {
                     ...parsed.options,
@@ -229,7 +227,6 @@ const executeMigrateMssql = async (options: {
                 driver = mssql;
             }
         } else {
-            // Standard config object
             pool = await new mssql.ConnectionPool({
                 server: poolConfig.host,
                 port: poolConfig.port,
@@ -253,6 +250,22 @@ const executeMigrateMssql = async (options: {
         const noAffectedQueries: { rawQuery: string; affected: number }[] = [];
         const multiAffectedQueries: { rawQuery: string; affected: number }[] = [];
 
+        // Group inserts by table for IDENTITY_INSERT optimization
+        const tableInsertMap = new Map<string, number[]>();
+        migrateUpLines.forEach((line, idx) => {
+            const trimmed = line.trim();
+            if (isInsertQuery(trimmed)) {
+                const table = extractInsertTargetTable(trimmed);
+                if (table) {
+                    if (!tableInsertMap.has(table)) tableInsertMap.set(table, []);
+                    tableInsertMap.get(table)!.push(idx);
+                }
+            }
+        });
+
+        // Track which tables have IDENTITY_INSERT ON
+        const identityOnTables = new Set<string>();
+
         for (let i = 0; i < migrateUpLines.length; i++) {
             const rawQuery = migrateUpLines[i].trim();
             const isInsert = isInsertQuery(rawQuery);
@@ -267,28 +280,24 @@ const executeMigrateMssql = async (options: {
 
             const preparedQuery = normalizeBooleanLiteralsForMssql(rawQuery);
 
-            logger.info(`Execute '${rawQuery}' to migrate...`);
-
             let result: any;
+            let table: string | undefined = undefined;
+
             try {
+                logger.info(`Execute '${rawQuery}' to migrate...`);
                 result = await request.query(preparedQuery);
             } catch (err) {
-                // Retry INSERT with IDENTITY_INSERT if needed
                 if (isInsert && isMssqlIdentityInsertError(err)) {
-                    const target = extractInsertTargetTable(preparedQuery);
-                    if (!target) throw err;
-                    logger.info(`Retrying with IDENTITY_INSERT ON for ${target}...`);
-                    await request.query(`SET IDENTITY_INSERT ${target} ON;`);
-                    try {
-                        result = await request.query(preparedQuery);
-                    } finally {
-                        // Best-effort turn OFF; let transaction rollback if this fails
-                        try {
-                            await request.query(`SET IDENTITY_INSERT ${target} OFF;`);
-                        } catch {
-                            /* noop */
-                        }
+                    table = extractInsertTargetTable(preparedQuery);
+                    if (!table) throw err;
+
+                    // Only enable IDENTITY_INSERT if not already ON for this table
+                    if (!identityOnTables.has(table)) {
+                        logger.info(`Enabling IDENTITY_INSERT ON for ${table}...`);
+                        await request.query(`SET IDENTITY_INSERT ${table} ON;`);
+                        identityOnTables.add(table);
                     }
+                    result = await request.query(preparedQuery);
                 } else {
                     throw err;
                 }
@@ -298,9 +307,15 @@ const executeMigrateMssql = async (options: {
                 ? result.rowsAffected[0]
                 : (result.rowsAffected as number);
 
-            if (isInsert) rowAffected.insert++;
-            if (isUpdate) rowAffected.update++;
-            if (isDelete) rowAffected.delete++;
+            if (isInsert) {
+                rowAffected.insert++;
+            }
+            if (isUpdate) {
+                rowAffected.update++;
+            }
+            if (isDelete) {
+                rowAffected.delete++;
+            }
 
             if ((rowCount ?? 0) <= 0) {
                 noAffectedQueries.push({ rawQuery, affected: rowCount ?? 0 });
@@ -310,6 +325,16 @@ const executeMigrateMssql = async (options: {
             }
 
             logger.info(`The '${rawQuery}' was successful migrated!`);
+
+            // If this is the last insert for the table, turn IDENTITY_INSERT OFF
+            if (isInsert && table) {
+                const insertIndexes = tableInsertMap.get(table);
+                if (insertIndexes && insertIndexes[insertIndexes.length - 1] === i && identityOnTables.has(table)) {
+                    logger.info(`Disabling IDENTITY_INSERT ON for ${table}...`);
+                    await request.query(`SET IDENTITY_INSERT ${table} OFF;`);
+                    identityOnTables.delete(table);
+                }
+            }
         }
 
         if (noAffectedQueries.length > 0) {
