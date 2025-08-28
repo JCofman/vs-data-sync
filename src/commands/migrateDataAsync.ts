@@ -579,13 +579,6 @@ export const migrateDataAsync = async (migrateFilePath: string, systemInfo?: Sys
                     return false;
                 }
 
-                if (rowAffected.error) {
-                    showErrorMessageWithDetail(
-                        `Failed to migrate data. The data will be rollback successful!`,
-                        rowAffected.error
-                    );
-                    return false;
-                }
                 showProgressReport(
                     progress,
                     `The data was successfully migrated with ${
