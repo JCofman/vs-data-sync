@@ -92,19 +92,44 @@ export class InfoProvider implements TreeDataProvider<InfoTreeItem> {
         db: PoolConfig,
         tables: TableConfig[]
     ): InfoTreeItem => {
+        const parsedConnectionString = db?.connectionString
+            ? Object.fromEntries(
+                  db.connectionString
+                      .split(';')
+                      .filter(Boolean)
+                      .map((pair) => {
+                          const [key, ...rest] = pair.split('=');
+                          return [key.trim(), rest.join('=').trim()];
+                      })
+              )
+            : {};
+
+        const database = db.database || parsedConnectionString.Database;
+        const host = db.host || parsedConnectionString.Server;
+        const port = db.port || parsedConnectionString.Port;
+        const user =
+            db.user ||
+            parsedConnectionString.User ||
+            parsedConnectionString['User Id'] ||
+            parsedConnectionString['UserID'];
         return {
             // Built-in field
-            id: `${parent.id}/${from}/${db.database}`,
-            label: `${db.database}`,
+            id: `${parent.id}/${from}/${database || 'unknown'}`,
+            label: database || 'Unknown Database',
             description: `from ${from}, ${tables.length} table(s) defined`,
-            tooltip: [`Database: ${db.database}`, `Host: ${db.host}`, `Port: ${db.port}`, `User: ${db.user}`].join(EOL),
+            tooltip: [
+                `Database: ${database || ''}`,
+                `Host: ${host || ''}`,
+                `Port: ${port || ''}`,
+                `User: ${user || ''}`
+            ].join(EOL),
             contextValue: 'database-context',
             iconPath: new ThemeIcon('database'),
             collapsibleState: tables.length > 0 ? TreeItemCollapsibleState.Collapsed : undefined,
 
             // Addition
             type: 'database',
-            databaseName: db.database,
+            databaseName: database,
             parent
         };
     };
