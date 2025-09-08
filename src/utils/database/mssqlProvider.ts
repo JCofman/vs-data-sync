@@ -4,6 +4,7 @@ import * as mssql from 'mssql';
 import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
+import { validateIdentifier } from '../validateIdentifier';
 
 export class MssqlProvider implements DatabaseProvider {
     private pool: mssql.ConnectionPool | null = null;
@@ -104,11 +105,6 @@ export class MssqlProvider implements DatabaseProvider {
             yield row;
         }
     }
-    private validateIdentifier(identifier: string): void {
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
-            throw new Error(`Invalid SQL identifier: ${identifier}`);
-        }
-    }
 
     async getPrimaryKeys(table: TableConfig): Promise<string[]> {
         if (!this.pool) {
@@ -117,8 +113,8 @@ export class MssqlProvider implements DatabaseProvider {
         const tableSchema = table.schema || 'dbo'; // Default schema in SQL Server
 
         // Validate identifiers to prevent injection
-        this.validateIdentifier(table.name);
-        this.validateIdentifier(tableSchema);
+        validateIdentifier(table.name);
+        validateIdentifier(tableSchema);
 
         const sql = `
         SELECT column_name
@@ -142,8 +138,8 @@ export class MssqlProvider implements DatabaseProvider {
             throw new Error('Not connected');
         }
         const tableSchema = table.schema || 'dbo';
-        this.validateIdentifier(table.name);
-        this.validateIdentifier(tableSchema);
+        validateIdentifier(table.name);
+        validateIdentifier(tableSchema);
 
         const sql = `
         SELECT column_name

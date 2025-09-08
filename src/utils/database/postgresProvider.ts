@@ -3,6 +3,7 @@ import { QueryIterablePool } from 'pg-iterator';
 import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
+import { validateIdentifier } from './validateIdentifier';
 
 export class PostgresProvider implements DatabaseProvider {
     private pool: pg.Pool | null = null;
@@ -75,24 +76,27 @@ export class PostgresProvider implements DatabaseProvider {
 
     async getPrimaryKeys(table: TableConfig): Promise<string[]> {
         if (!this.pool) throw new Error('Not connected');
-        const rawQuery = `
-      SELECT c.column_name
-      FROM information_schema.table_constraints t
+        validateIdentifier(table.name);
+        const sql = `
+        SELECT c.column_name
+        FROM information_schema.table_constraints t
         JOIN information_schema.constraint_column_usage c
-        ON c.constraint_name = t.constraint_name
-      WHERE t.constraint_type = 'PRIMARY KEY' AND c.table_name = '${table.name}'`;
-        const result = await this.pool.query(rawQuery);
+            ON c.constraint_name = t.constraint_name
+        WHERE t.constraint_type = 'PRIMARY KEY'
+        AND c.table_name = $1`;
+        const result = await this.pool.query(sql, [table.name]);
         return result.rows.map((row) => row.column_name);
     }
 
     async getColumnNames(table: TableConfig): Promise<string[]> {
         if (!this.pool) throw new Error('Not connected');
-        const rawQuery = `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = '${table.name}'
-      ORDER BY ordinal_position`;
-        const result = await this.pool.query(rawQuery);
+        validateIdentifier(table.name);
+        const sql = `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = $1
+        ORDER BY ordinal_position`;
+        const result = await this.pool.query(sql, [table.name]);
         return result.rows.map((row) => row.column_name);
     }
 
