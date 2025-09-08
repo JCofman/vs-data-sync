@@ -104,33 +104,63 @@ export class MssqlProvider implements DatabaseProvider {
             yield row;
         }
     }
+    private validateIdentifier(identifier: string): void {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier)) {
+            throw new Error(`Invalid SQL identifier: ${identifier}`);
+        }
+    }
 
     async getPrimaryKeys(table: TableConfig): Promise<string[]> {
-        if (!this.pool) throw new Error('Not connected');
+        if (!this.pool) {
+            throw new Error('Not connected');
+        }
         const tableSchema = table.schema || 'dbo'; // Default schema in SQL Server
-        const sql = `
-      SELECT column_name
-      FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-      WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1
-      AND table_name = '${table.name}'
-      AND table_schema = '${tableSchema}'`;
 
-        const result = await this.query(sql);
-        return result.rows.map((row) => row.column_name);
+        // Validate identifiers to prevent injection
+        this.validateIdentifier(table.name);
+        this.validateIdentifier(tableSchema);
+
+        const sql = `
+        SELECT column_name
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE OBJECTPROPERTY(OBJECT_ID(constraint_name), 'IsPrimaryKey') = 1
+        AND table_name = @tableName
+        AND table_schema = @tableSchema`;
+        const request = this.transaction
+            ? new this.driver.Request(this.transaction)
+            : new this.driver.Request(this.pool);
+
+        request.input('tableName', table.name);
+        request.input('tableSchema', tableSchema);
+
+        const result = await request.query(sql);
+        return result.recordset.map((row) => row.column_name);
     }
 
     async getColumnNames(table: TableConfig): Promise<string[]> {
-        if (!this.pool) throw new Error('Not connected');
-        const tableSchema = table.schema || 'dbo'; // Default schema in SQL Server
-        const sql = `
-      SELECT column_name
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE table_name = '${table.name}'
-      AND table_schema = '${tableSchema}'
-      ORDER BY ordinal_position`;
+        if (!this.pool) {
+            throw new Error('Not connected');
+        }
+        const tableSchema = table.schema || 'dbo';
+        this.validateIdentifier(table.name);
+        this.validateIdentifier(tableSchema);
 
-        const result = await this.query(sql);
-        return result.rows.map((row) => row.column_name);
+        const sql = `
+        SELECT column_name
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE table_name = @tableName
+        AND table_schema = @tableSchema
+        ORDER BY ordinal_position`;
+
+        const request = this.transaction
+            ? new this.driver.Request(this.transaction)
+            : new this.driver.Request(this.pool);
+
+        request.input('tableName', table.name);
+        request.input('tableSchema', tableSchema);
+
+        const result = await request.query(sql);
+        return result.recordset.map((row) => row.column_name);
     }
 
     escapeIdentifier(identifier: string): string {
