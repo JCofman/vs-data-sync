@@ -14,7 +14,7 @@ export const makeInsertQuery = (
     values: any,
     dbType: 'postgres' | 'mssql' = 'postgres'
 ): string => {
-    const columns = tableDetail.columns;
+    const columns = tableDetail.columns ?? [];
     const columnsStr = columns.map((c) => (dbType === 'postgres' ? `"${c}"` : `[${c}]`)).join(', ');
 
     // Handle different value escaping for different databases
@@ -60,6 +60,10 @@ export const makeUpdateQuery = (
 ): string => {
     const columns = tableDetail.columns;
     const primaryKeys = tableDetail.primaryKeys;
+
+    if (!Array.isArray(columns) || columns.length === 0) {
+        throw new Error(`The table '${table.name}' does not have columns defined.`);
+    }
 
     if (!primaryKeys || primaryKeys.length === 0) {
         throw new Error(`The table '${table.name}' does not have primary keys.`);
