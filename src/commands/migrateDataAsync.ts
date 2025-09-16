@@ -65,6 +65,220 @@ const extractInsertTargetTable = (sql: string): string | undefined => {
     return m?.[1];
 };
 
+// Split SQL script into executable statements, preserving newlines inside literals.
+// - Uses ';' as a statement terminator (outside strings/comments)
+// - For MSSQL also treats a standalone 'GO' line as a batch separator.
+// - Understands: single-quoted strings ('' escape), "quoted identifiers", [bracket identifiers],
+//   line comments (-- ...), block comments (/* ... */), and Postgres dollar-quoted strings ($tag$ ... $tag$)
+const splitSqlStatements = (input: string, dialect: 'mssql' | 'postgres'): string[] => {
+    const sql = input.replace(/\r\n/g, '\n'); // normalize
+    const out: string[] = [];
+    let buf: string[] = [];
+
+    let inSingle = false; // 'string'
+    let inDoubleIdent = false; // "identifier"
+    let inBracketIdent = false; // [identifier] (MSSQL)
+    let inLineComment = false; // -- ...
+    let inBlockComment = false; // /* ... */
+    let dollarTag: string | null = null; // $tag$
+
+    const n = sql.length;
+    let i = 0;
+    let atLineStart = true;
+
+    const flush = () => {
+        const stmt = buf.join('').trim();
+        if (stmt.length > 0) out.push(stmt);
+        buf = [];
+    };
+
+    while (i < n) {
+        const ch = sql[i];
+        const next = i + 1 < n ? sql[i + 1] : '';
+
+        // Detect standalone GO (MSSQL) at start of a line when not inside any literal/comment
+        if (
+            dialect === 'mssql' &&
+            atLineStart &&
+            !inSingle &&
+            !inDoubleIdent &&
+            !inBracketIdent &&
+            !inLineComment &&
+            !inBlockComment &&
+            dollarTag === null
+        ) {
+            // Peek current line
+            let j = i;
+            while (j < n && sql[j] !== '\n') j++;
+            const line = sql.slice(i, j).trim();
+            if (line.toUpperCase() === 'GO') {
+                // End of previous batch
+                flush();
+                // Skip this GO line and its newline
+                i = j < n && sql[j] === '\n' ? j + 1 : j;
+                atLineStart = true;
+                continue;
+            }
+        }
+
+        // Handle end of line for -- comments
+        if (inLineComment) {
+            buf.push(ch);
+            if (ch === '\n') {
+                inLineComment = false;
+                atLineStart = true;
+            } else if (!/\s/.test(ch)) {
+                atLineStart = false;
+            }
+            i++;
+            continue;
+        }
+
+        // Handle block comment
+        if (inBlockComment) {
+            buf.push(ch);
+            if (ch === '*' && next === '/') {
+                buf.push(next);
+                i += 2;
+                inBlockComment = false;
+                continue;
+            }
+            if (ch === '\n') atLineStart = true;
+            else if (!/\s/.test(ch)) atLineStart = false;
+            i++;
+            continue;
+        }
+
+        // Handle dollar-quoted string (Postgres)
+        if (dollarTag) {
+            // End tag matches exactly
+            if (sql.startsWith(dollarTag, i)) {
+                buf.push(dollarTag);
+                i += dollarTag.length;
+                dollarTag = null;
+                continue;
+            }
+            // Copy as-is
+            if (ch === '\n') atLineStart = true;
+            else if (!/\s/.test(ch)) atLineStart = false;
+            buf.push(ch);
+            i++;
+            continue;
+        }
+
+        // Handle single-quoted string
+        if (inSingle) {
+            buf.push(ch);
+            if (ch === "'") {
+                // Escaped ''
+                if (next === "'") {
+                    buf.push(next);
+                    i += 2;
+                    continue;
+                }
+                inSingle = false;
+            }
+            if (ch === '\n') atLineStart = true;
+            else if (!/\s/.test(ch)) atLineStart = false;
+            i++;
+            continue;
+        }
+
+        // Handle quoted identifier "
+        if (inDoubleIdent) {
+            buf.push(ch);
+            if (ch === '"') inDoubleIdent = false;
+            if (ch === '\n') atLineStart = true;
+            else if (!/\s/.test(ch)) atLineStart = false;
+            i++;
+            continue;
+        }
+
+        // Handle bracketed identifier [
+        if (inBracketIdent) {
+            buf.push(ch);
+            if (ch === ']') inBracketIdent = false;
+            if (ch === '\n') atLineStart = true;
+            else if (!/\s/.test(ch)) atLineStart = false;
+            i++;
+            continue;
+        }
+
+        // Outside any literal/comment:
+        // Start of comments
+        if (ch === '-' && next === '-') {
+            buf.push(ch, next);
+            i += 2;
+            inLineComment = true;
+            continue;
+        }
+        if (ch === '/' && next === '*') {
+            buf.push(ch, next);
+            i += 2;
+            inBlockComment = true;
+            continue;
+        }
+
+        // Start of literals/identifiers
+        if (ch === "'") {
+            buf.push(ch);
+            inSingle = true;
+            i++;
+            continue;
+        }
+        if (ch === '"') {
+            buf.push(ch);
+            inDoubleIdent = true;
+            i++;
+            continue;
+        }
+        if (ch === '[') {
+            buf.push(ch);
+            inBracketIdent = true;
+            i++;
+            continue;
+        }
+
+        // Postgres dollar-quote start: $tag$
+        if (dialect === 'postgres' && ch === '$') {
+            let j = i + 1;
+            while (j < n && /[A-Za-z0-9_]/.test(sql[j])) j++;
+            if (j < n && sql[j] === '$') {
+                const tag = sql.slice(i, j + 1); // includes both '$'
+                buf.push(tag);
+                i = j + 1;
+                dollarTag = tag;
+                continue;
+            }
+        }
+
+        // Statement terminator
+        if (ch === ';') {
+            // push ';' too, then flush (optional to include it)
+            buf.push(ch);
+            flush();
+            i++;
+            atLineStart = true;
+            continue;
+        }
+
+        // Track start-of-line
+        if (ch === '\n') {
+            atLineStart = true;
+        } else if (!/\s/.test(ch)) {
+            atLineStart = false;
+        }
+
+        // Default: copy char
+        buf.push(ch);
+        i++;
+    }
+
+    // Remaining buffer
+    flush();
+    return out;
+};
+
 // Normalize unquoted boolean literals to BIT (1/0) for SQL Server.
 // Skips single-quoted strings, bracketed identifiers, line and block comments.
 export const normalizeBooleanLiteralsForMssql = (sql: string): string => {
@@ -281,20 +495,27 @@ const executeMigrateMssql = async (options: {
             const preparedQuery = normalizeBooleanLiteralsForMssql(rawQuery);
 
             let result: any;
-            let table: string | undefined = undefined;
+            const table: string | undefined = isInsert ? extractInsertTargetTable(preparedQuery) : undefined;
 
             try {
                 logger.info(`Execute '${rawQuery}' to migrate...`);
                 result = await request.query(preparedQuery);
             } catch (err) {
                 if (isInsert && isMssqlIdentityInsertError(err)) {
-                    table = extractInsertTargetTable(preparedQuery);
                     if (!table) throw err;
 
-                    // Only enable IDENTITY_INSERT if not already ON for this table
                     if (!identityOnTables.has(table)) {
                         logger.info(`Enabling IDENTITY_INSERT ON for ${table}...`);
-                        await request.query(`SET IDENTITY_INSERT ${table} ON;`);
+                        try {
+                            await request.query(`SET IDENTITY_INSERT ${table} ON;`);
+                        } catch (err: any) {
+                            const msg = err?.message?.toLowerCase() || '';
+                            if (!msg.includes('identity_insert is already on for table')) {
+                                throw err;
+                            } else {
+                                logger.warn(`IDENTITY_INSERT was already ON for ${table}.`);
+                            }
+                        }
                         identityOnTables.add(table);
                     }
                     result = await request.query(preparedQuery);
@@ -556,6 +777,13 @@ export const migrateDataAsync = async (migrateFilePath: string, systemInfo?: Sys
                 showProgressReport(progress, `Starting migrate data...`);
                 logger.info(`Migrate to target with db connection '${getDatabaseInfo(pattern.target)}'....`);
                 const dbType = pattern.target.type;
+                // Parse statements per dialect
+                const migrateUpLines = splitSqlStatements(migrateUpContent, dbType === 'mssql' ? 'mssql' : 'postgres');
+                if (migrateUpLines.length <= 0) {
+                    window.showWarningMessage(`The migrate file ${migrateFilePath} does not contain any statements.`);
+                    return false;
+                }
+
                 let rowAffected;
                 if (dbType === 'mssql') {
                     rowAffected = await executeMigrateMssql({

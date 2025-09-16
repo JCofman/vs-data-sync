@@ -4,7 +4,7 @@ import * as mssql from 'mssql';
 import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
-import { validateIdentifier } from '../validateIdentifier';
+import { validateIdentifier } from './validateIdentifier';
 
 export class MssqlProvider implements DatabaseProvider {
     private pool: mssql.ConnectionPool | null = null;
