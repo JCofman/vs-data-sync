@@ -14,3 +14,4 @@ package-lock.json
 dist/**/*.map
 tsconfig.json
 webpack.config.json
+.history
