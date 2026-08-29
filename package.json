@@ -4,7 +4,7 @@
     "description": "Compare and reconcile selected row data between PostgreSQL or SQL Server databases.",
     "icon": "assets/logo.png",
     "pricing": "Free",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "main": "./dist/extension.js",
     "preview": false,
     "qna": "marketplace",
@@ -299,7 +299,7 @@
         "vscode:prepublish": "npm run vscode-desktop:publish",
         "vscode-desktop:publish": "npm run esbuild-base -- --minify",
         "vscode-web:publish": "npm run compile-web -- --mode production --devtool false",
-        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --alias:msnodesqlv8=./src/utils/database/msnodesqlv8Runtime.ts --format=cjs --platform=node --loader:.node=file",
+        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
         "esbuild": "npm run esbuild-base -- --sourcemap",
         "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
         "compile": "tsc -p ./",
@@ -308,11 +308,9 @@
         "cs": "changeset",
         "pree2e": "code --uninstall-extension jcofman.reconciledb-vscode || true",
         "e2e": "npm run package:universal",
-        "poste2e": "code --install-extension ./artifacts/reconciledb-vscode-1.0.0-universal.vsix",
+        "poste2e": "code --install-extension ./artifacts/reconciledb-vscode-1.0.1-universal.vsix",
         "prepackage:universal": "node ./scripts/prepareArtifacts.js",
         "package:universal": "node ./scripts/packageExtension.js universal",
-        "prepackage:win32-x64": "node ./scripts/stageWindowsNativeDriver.js",
-        "package:win32-x64": "node ./scripts/packageExtension.js win32-x64",
         "compile-web": "webpack",
         "watch-web": "webpack --watch",
         "esbuild-test": "esbuild ./src/__test__/*.ts ./src/__test__/**/*.ts --outdir=./dist/__test__ --format=cjs --platform=node",
@@ -375,9 +373,6 @@
         "pg": "^8.11.1",
         "pg-iterator": "^0.3.0",
         "pg-promise": "^11.5.0"
-    },
-    "optionalDependencies": {
-        "msnodesqlv8": "5.3.0"
     },
     "author": {
         "name": "Nguyen Ngoc Long and ReconcileDB contributors",

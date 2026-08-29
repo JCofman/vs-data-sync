@@ -4,7 +4,7 @@ import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
 import { validateIdentifier } from './validateIdentifier';
-import { connectMssql, MssqlDriver } from './mssqlConnection';
+import { connectMssql } from './mssqlConnection';
 import { formatDatabaseInfo } from './databaseInfo';
 
 export async function* streamMssqlRequest(
@@ -76,7 +76,6 @@ export class MssqlProvider implements DatabaseProvider {
     private pool: mssql.ConnectionPool | null = null;
     private transaction: mssql.Transaction | null = null;
     private config: DatabaseConfig;
-    private driver: MssqlDriver = mssql;
 
     constructor(config: DatabaseConfig) {
         this.config = config;
@@ -85,7 +84,6 @@ export class MssqlProvider implements DatabaseProvider {
     async connect(): Promise<void> {
         const connection = await connectMssql(this.config);
         this.pool = connection.pool;
-        this.driver = connection.driver;
     }
 
     async disconnect(): Promise<void> {
@@ -101,7 +99,7 @@ export class MssqlProvider implements DatabaseProvider {
 
     async beginTransaction(): Promise<void> {
         if (!this.pool) throw new Error('Not connected');
-        this.transaction = new this.driver.Transaction(this.pool);
+        this.transaction = new mssql.Transaction(this.pool);
         await this.transaction.begin();
     }
 
@@ -120,8 +118,8 @@ export class MssqlProvider implements DatabaseProvider {
     async query(sql: string): Promise<{ rows: QueryResultRow[]; rowCount: number }> {
         if (!this.pool) throw new Error('Not connected');
         const request = this.transaction
-            ? new this.driver.Request(this.transaction)
-            : new this.driver.Request(this.pool);
+            ? new mssql.Request(this.transaction)
+            : new mssql.Request(this.pool);
 
         const result = await request.query(sql);
         return {
@@ -133,8 +131,8 @@ export class MssqlProvider implements DatabaseProvider {
     async *queryStream(sql: string): AsyncIterable<QueryResultRow> {
         if (!this.pool) throw new Error('Not connected');
         const request = this.transaction
-            ? new this.driver.Request(this.transaction)
-            : new this.driver.Request(this.pool);
+            ? new mssql.Request(this.transaction)
+            : new mssql.Request(this.pool);
 
         for await (const row of streamMssqlRequest(request, sql)) {
             yield row;
@@ -158,8 +156,8 @@ export class MssqlProvider implements DatabaseProvider {
         AND table_name = @tableName
         AND table_schema = @tableSchema`;
         const request = this.transaction
-            ? new this.driver.Request(this.transaction)
-            : new this.driver.Request(this.pool);
+            ? new mssql.Request(this.transaction)
+            : new mssql.Request(this.pool);
 
         request.input('tableName', table.name);
         request.input('tableSchema', tableSchema);
@@ -184,8 +182,8 @@ export class MssqlProvider implements DatabaseProvider {
         ORDER BY ordinal_position`;
 
         const request = this.transaction
-            ? new this.driver.Request(this.transaction)
-            : new this.driver.Request(this.pool);
+            ? new mssql.Request(this.transaction)
+            : new mssql.Request(this.pool);
 
         request.input('tableName', table.name);
         request.input('tableSchema', tableSchema);

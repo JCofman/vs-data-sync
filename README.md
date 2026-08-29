@@ -21,18 +21,13 @@ Compare selected row data between two databases with the same schema, inspect th
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.0.0` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.0.1` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 
 Install **ReconcileDB for VS Code** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=jcofman.reconciledb-vscode) or [Open VSX Registry](https://open-vsx.org/extension/jcofman/reconciledb-vscode).
 
-The listing provides two desktop packages with the same extension ID:
-
-- A universal package for PostgreSQL and SQL Server username/password authentication on Windows, macOS, and Linux.
-- A Windows x64 package that additionally supports SQL Server integrated authentication through `msnodesqlv8`.
-
-Windows integrated authentication requires [Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server). Windows ARM64 users can use the universal package with SQL Server username/password authentication.
+The universal desktop package supports PostgreSQL and SQL Server username/password authentication on Windows, macOS, and Linux.
 
 ## Quick start
 
@@ -92,16 +87,18 @@ The existing `data-sync.*` command IDs, settings, and `database.json` format rem
 
 ### SQL Server example
 
-For SQL Server authentication, use the same structure with `"type": "mssql"`, normally on port `1433`. You can also provide a `connectionString`.
-
-Windows integrated authentication is selected when a SQL Server connection string has no username or password:
+For SQL Server authentication, use the same structure with `"type": "mssql"`, normally on port `1433`. You can also provide a username/password connection string:
 
 ```jsonc
 {
   "type": "mssql",
-  "connectionString": "Driver={ODBC Driver 18 for SQL Server};Server=localhost;Database=app;Trusted_Connection=Yes;TrustServerCertificate=Yes;"
+  "connectionString": "Server=localhost;Database=app;User Id=reconciler;Password=secret;Encrypt=true;TrustServerCertificate=true;"
 }
 ```
+
+## Might implement later
+
+- Windows integrated authentication. This would require revisiting native-driver packaging; for now, use SQL Server username/password authentication.
 
 ## Safety notes
 
@@ -117,4 +114,4 @@ Please report bugs and feature requests in the [JCofman/vs-data-sync issue track
 
 ## License
 
-ReconcileDB for VS Code is distributed under the [MIT License](LICENSE). It also includes `msnodesqlv8` in the Windows x64 package under the Apache-2.0 license.
+ReconcileDB for VS Code is distributed under the [MIT License](LICENSE).

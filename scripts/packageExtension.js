@@ -4,8 +4,8 @@ const path = require('node:path');
 const packageJson = require('../package.json');
 
 const variant = process.argv[2];
-if (variant !== 'universal' && variant !== 'win32-x64') {
-    throw new Error("Expected package variant 'universal' or 'win32-x64'.");
+if (variant !== 'universal') {
+    throw new Error("Expected package variant 'universal'.");
 }
 
 const outputPath = path.join(
@@ -13,10 +13,6 @@ const outputPath = path.join(
     `${packageJson.name}-${packageJson.version}-${variant}.vsix`
 );
 const vsceArgs = ['exec', '--', 'vsce', 'package', '--no-dependencies'];
-
-if (variant === 'win32-x64') {
-    vsceArgs.push('--target', 'win32-x64', '--ignoreFile', '.vscodeignore.win32-x64');
-}
 
 vsceArgs.push('--out', outputPath);
 
