@@ -9,6 +9,7 @@ import { ConfigManager } from '../utils/configManager';
 import { APP_ID, APP_NAME, constants } from '../utils/constants';
 import { FileManager } from '../utils/fileManager';
 import { logger } from '../utils/logger';
+import { resolvePatternDatabaseType } from '../utils/database/databaseType';
 import { showIsAnalyzingWarning, showNoConfigWarning, showNoPatternWarning } from '../utils/notification';
 import { showProgressReport, showProgressSuccess, showProgressWarn } from '../utils/progress';
 import { isDeleteQuery, isInsertQuery, isUpdateQuery } from '../utils/query';
@@ -677,6 +678,7 @@ export const migrateDataAsync = async (migrateFilePath: string, systemInfo?: Sys
 
         // Init configuration
         const pattern = configContent.patterns[store.currentPattern];
+        const dbType = resolvePatternDatabaseType(pattern);
 
         // Get plan content
         logger.info(`Starting migrate file '${migrateFilePath}'`);
@@ -746,7 +748,6 @@ export const migrateDataAsync = async (migrateFilePath: string, systemInfo?: Sys
                 // Execute migrate
                 showProgressReport(progress, `Starting migrate data...`);
                 logger.info(`Migrate to target with db connection '${getDatabaseInfo(pattern.target)}'....`);
-                const dbType = pattern.target.type;
                 // Parse statements per dialect
                 const migrateUpLines = splitSqlStatements(migrateUpContent, dbType === 'mssql' ? 'mssql' : 'postgres');
                 if (migrateUpLines.length <= 0) {

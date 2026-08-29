@@ -6,6 +6,7 @@ import { ConfigManager } from '../utils/configManager';
 import { APP_ID, APP_NAME, extCommands } from '../utils/constants';
 import { FileManager, getMigrationRoot } from '../utils/fileManager';
 import { logger } from '../utils/logger';
+import { resolvePatternDatabaseType } from '../utils/database/databaseType';
 import { showIncorrectConfigWarning, showIsAnalyzingWarning, showNoConfigWarning } from '../utils/notification';
 import { showProgressReport, showProgressSuccess, showProgressWarn } from '../utils/progress';
 import { store } from '../utils/store';
@@ -136,11 +137,7 @@ export const analyzeDataAsync = async (selectedPattern: string): Promise<void> =
             showIncorrectConfigWarning(selectedPattern);
             return;
         }
-        // Determine dbType from pattern config (default to 'postgres')
-        const dbType: 'postgres' | 'mssql' =
-            (pattern?.source?.type as 'postgres' | 'mssql') ||
-            (pattern?.target?.type as 'postgres' | 'mssql') ||
-            'postgres';
+        const dbType = resolvePatternDatabaseType(pattern);
 
         // Show output panel
         const config = workspace.getConfiguration(APP_ID) as ExtensionConfiguration;

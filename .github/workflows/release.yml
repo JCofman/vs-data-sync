@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,7 +18,6 @@ jobs:
           node-version: 20
           cache: npm
       - name: Verify tag matches package version
-        if: github.event_name == 'push'
         shell: bash
         run: node -e "const expected='v'+require('./package.json').version; if (process.env.GITHUB_REF_NAME !== expected) { throw new Error(`Expected tag ${expected}, got ${process.env.GITHUB_REF_NAME}`); }"
       - name: Install dependencies without optional native builds
@@ -31,7 +29,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: reconciledb-vscode-universal
-          path: artifacts/reconciledb-vscode-1.0.0-universal.vsix
+          path: artifacts/*-universal.vsix
 
   package-win32-x64:
     runs-on: windows-latest
@@ -53,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: reconciledb-vscode-win32-x64
-          path: artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix
+          path: artifacts/*-win32-x64.vsix
 
   publish:
     needs:
@@ -73,24 +71,33 @@ jobs:
           pattern: reconciledb-vscode-*
           path: artifacts
           merge-multiple: true
+      - name: Verify registry credentials before publishing
+        shell: bash
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
+        run: |
+          test -n "$VSCE_PAT" || { echo 'VSCE_PAT is not configured in the extension-release environment.'; exit 1; }
+          test -n "$OPEN_VSX_TOKEN" || { echo 'OPEN_VSX_TOKEN is not configured in the extension-release environment.'; exit 1; }
       - name: Publish universal package to Visual Studio Marketplace
-        run: npm exec -- vsce publish --packagePath artifacts/reconciledb-vscode-1.0.0-universal.vsix -p "$VSCE_PAT"
+        run: npm exec -- vsce publish --packagePath artifacts/*-universal.vsix -p "$VSCE_PAT"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
       - name: Publish Windows x64 package to Visual Studio Marketplace
-        run: npm exec -- vsce publish --packagePath artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix -p "$VSCE_PAT"
+        run: npm exec -- vsce publish --packagePath artifacts/*-win32-x64.vsix -p "$VSCE_PAT"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
       - name: Publish universal package to Open VSX
-        run: npm exec -- ovsx publish artifacts/reconciledb-vscode-1.0.0-universal.vsix -p "$OPEN_VSX_TOKEN"
+        run: npm exec -- ovsx publish artifacts/*-universal.vsix -p "$OPEN_VSX_TOKEN"
         env:
           OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
       - name: Publish Windows x64 package to Open VSX
-        run: npm exec -- ovsx publish artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix -p "$OPEN_VSX_TOKEN"
+        run: npm exec -- ovsx publish artifacts/*-win32-x64.vsix -p "$OPEN_VSX_TOKEN"
         env:
           OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
       - name: Create GitHub release
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/*.vsix --verify-tag --generate-notes --title "ReconcileDB for VS Code 1.0.0"
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          gh release create "$GITHUB_REF_NAME" artifacts/*.vsix --verify-tag --generate-notes --title "ReconcileDB for VS Code $VERSION"

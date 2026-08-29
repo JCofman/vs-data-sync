@@ -4,6 +4,7 @@ import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
 import { validateIdentifier } from './validateIdentifier';
+import { formatDatabaseInfo } from './databaseInfo';
 
 export class PostgresProvider implements DatabaseProvider {
     private pool: pg.Pool | null = null;
@@ -105,7 +106,6 @@ export class PostgresProvider implements DatabaseProvider {
     }
 
     getDatabaseInfo(): string {
-        const { host, port, database, user } = this.config;
-        return `postgres://${user}@${host}:${port}/${database}`;
+        return formatDatabaseInfo(this.config);
     }
 }

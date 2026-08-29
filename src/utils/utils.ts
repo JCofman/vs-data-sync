@@ -6,6 +6,7 @@ import { constants } from './constants';
 import { logger } from './logger';
 import { SystemInfo } from './systemInfo';
 import { DatabaseConfig } from './database/databaseProvider';
+import { formatDatabaseInfo } from './database/databaseInfo';
 
 export type TableDetail = {
     primaryKeys: string[];
@@ -134,12 +135,7 @@ export const upperToPascal = (input: string): string => {
 };
 
 export const getDatabaseInfo = (poolConfig: DatabaseConfig): string => {
-    const { user, host, port, database, type, connectionString } = poolConfig;
-    const maskPassword = '*'.repeat(6);
-    if (connectionString) {
-        return `${type}://${connectionString}`;
-    }
-    return `{${type}}://${user}:${maskPassword}@${host}:${port}/${database}`;
+    return formatDatabaseInfo(poolConfig);
 };
 
 export const getTablePrimaryKey = (table: TableConfig, tableDetail: TableDetail, record: any): string => {

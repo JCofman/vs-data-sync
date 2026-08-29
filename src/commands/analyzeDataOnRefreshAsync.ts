@@ -4,6 +4,7 @@ import { ConfigManager } from '../utils/configManager';
 import { APP_ID, APP_NAME, extCommands } from '../utils/constants';
 import { FileManager } from '../utils/fileManager';
 import { logger } from '../utils/logger';
+import { resolvePatternDatabaseType } from '../utils/database/databaseType';
 import { showIncorrectConfigWarning, showNoConfigWarning, showNoPatternWarning } from '../utils/notification';
 import { showProgressReport, showProgressWarn } from '../utils/progress';
 import { showErrorMessageWithDetail } from '../utils/utils';
@@ -45,10 +46,7 @@ export const analyzeDataOnRefreshAsync = async (selectedPattern: string, migrate
 
         const pattern = patterns[selectedPattern];
 
-        const dbType: 'postgres' | 'mssql' =
-            (pattern?.source?.type as 'postgres' | 'mssql') ||
-            (pattern?.target?.type as 'postgres' | 'mssql') ||
-            'postgres';
+        const dbType = resolvePatternDatabaseType(pattern);
 
         const tables = pattern?.diff?.tables;
         if (!tables || tables.length <= 0) {

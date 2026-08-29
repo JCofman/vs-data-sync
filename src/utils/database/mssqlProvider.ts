@@ -5,6 +5,72 @@ import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
 import { validateIdentifier } from './validateIdentifier';
 import { connectMssql, MssqlDriver } from './mssqlConnection';
+import { formatDatabaseInfo } from './databaseInfo';
+
+export async function* streamMssqlRequest(
+    request: mssql.Request,
+    sql: string
+): AsyncIterable<QueryResultRow> {
+    const rows: QueryResultRow[] = [];
+    let complete = false;
+    let failure: unknown;
+    let wakeConsumer: (() => void) | undefined;
+
+    const wake = () => {
+        wakeConsumer?.();
+        wakeConsumer = undefined;
+    };
+    const onRow = (row: QueryResultRow) => {
+        rows.push(row);
+        request.pause();
+        wake();
+    };
+    const onError = (error: Error) => {
+        failure = error;
+        complete = true;
+        wake();
+    };
+    const onDone = () => {
+        complete = true;
+        wake();
+    };
+
+    request.stream = true;
+    request.on('row', onRow);
+    request.on('error', onError);
+    request.on('done', onDone);
+    void request.query(sql).catch(onError);
+
+    try {
+        while (!complete || rows.length > 0) {
+            if (failure) {
+                throw failure;
+            }
+            if (rows.length === 0) {
+                await new Promise<void>((resolve) => {
+                    wakeConsumer = resolve;
+                });
+                continue;
+            }
+
+            yield rows.shift() as QueryResultRow;
+            if (!complete) {
+                request.resume();
+            }
+        }
+
+        if (failure) {
+            throw failure;
+        }
+    } finally {
+        request.removeListener('row', onRow);
+        request.removeListener('error', onError);
+        request.removeListener('done', onDone);
+        if (!complete) {
+            request.cancel();
+        }
+    }
+}
 
 export class MssqlProvider implements DatabaseProvider {
     private pool: mssql.ConnectionPool | null = null;
@@ -70,8 +136,7 @@ export class MssqlProvider implements DatabaseProvider {
             ? new this.driver.Request(this.transaction)
             : new this.driver.Request(this.pool);
 
-        const result = await request.query(sql);
-        for (const row of result.recordset) {
+        for await (const row of streamMssqlRequest(request, sql)) {
             yield row;
         }
     }
@@ -134,10 +199,6 @@ export class MssqlProvider implements DatabaseProvider {
     }
 
     getDatabaseInfo(): string {
-        if (this.config.connectionString) {
-            return `mssql://${this.config.connectionString}`;
-        }
-        const { host, port, database, user } = this.config;
-        return `mssql://${user}@${host}:${port}/${database}`;
+        return formatDatabaseInfo(this.config);
     }
 }

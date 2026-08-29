@@ -36,22 +36,35 @@ export const usesIntegratedAuthentication = (connectionString: string): boolean 
     return !parsed.user || !parsed.password;
 };
 
+export const createIntegratedAuthenticationConfig = (config: DatabaseConfig) => {
+    if (!config.connectionString) {
+        throw new Error('SQL Server integrated authentication requires a connection string.');
+    }
+
+    const parsed = mssql.ConnectionPool.parseConnectionString(config.connectionString);
+    return {
+        ...parsed,
+        // The msnodesqlv8 adapter consumes this raw ODBC string. Without it, the
+        // adapter silently constructs a SQL Server Native Client 11.0 string.
+        connectionString: config.connectionString,
+        driver: 'msnodesqlv8',
+        options: {
+            ...parsed.options,
+            trustServerCertificate: config.mssqlOptions?.trustServerCertificate ?? true,
+            trustedConnection: true
+        }
+    };
+};
+
 export const connectMssql = async (config: DatabaseConfig): Promise<MssqlConnection> => {
     if (config.connectionString) {
-        const parsed = mssql.ConnectionPool.parseConnectionString(config.connectionString);
-
         if (usesIntegratedAuthentication(config.connectionString)) {
             const driver = loadNativeDriver();
-            parsed.driver = 'msnodesqlv8';
-            parsed.options = {
-                ...parsed.options,
-                trustServerCertificate: config.mssqlOptions?.trustServerCertificate ?? true,
-                trustedConnection: true
-            };
+            const integratedConfig = createIntegratedAuthenticationConfig(config);
 
             return {
                 driver,
-                pool: await new driver.ConnectionPool(parsed).connect()
+                pool: await new driver.ConnectionPool(integratedConfig).connect()
             };
         }
 
