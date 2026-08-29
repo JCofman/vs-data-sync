@@ -14,7 +14,6 @@ src/
 .gitignore
 .npmrc
 .vscodeignore
-.vscodeignore.win32-x64
 package-lock.json
 *.vsix
 dist/**

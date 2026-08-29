@@ -25,7 +25,7 @@ import {
     showInputPassword
 } from '../utils/utils';
 import { tryConnectionAsync } from './actions/tryConnectionAsync';
-import { connectMssql, MssqlDriver } from '../utils/database/mssqlConnection';
+import { connectMssql } from '../utils/database/mssqlConnection';
 
 const handleWarningQueries = (
     warnQueries: { rawQuery: string; affected: number }[],
@@ -412,7 +412,6 @@ const executeMigrateMssql = async (options: {
 }): Promise<{ insert: number; update: number; delete: number; error?: unknown }> => {
     const { poolConfig, migrateConfig, migrateUpLines } = options;
 
-    let driver: MssqlDriver = mssql;
     let pool: mssql.ConnectionPool | undefined = undefined;
     let transaction: mssql.Transaction | undefined = undefined;
 
@@ -425,12 +424,12 @@ const executeMigrateMssql = async (options: {
     try {
         const connection = await connectMssql(poolConfig);
         pool = connection.pool;
-        driver = connection.driver;
 
-        transaction = new driver.Transaction(pool);
-        await transaction.begin();
+        const activeTransaction = new mssql.Transaction(pool);
+        transaction = activeTransaction;
+        await activeTransaction.begin();
 
-        const request = new driver.Request(transaction);
+        const request = new mssql.Request(activeTransaction);
 
         const noAffectedQueries: { rawQuery: string; affected: number }[] = [];
         const multiAffectedQueries: { rawQuery: string; affected: number }[] = [];
@@ -538,7 +537,7 @@ const executeMigrateMssql = async (options: {
             handleWarningQueries(multiAffectedQueries, migrateConfig?.multipleRowAffected || 'throw', message);
         }
 
-        await transaction.commit();
+        await activeTransaction.commit();
         return rowAffected;
     } catch (error) {
         if (transaction) {

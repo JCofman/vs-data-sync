@@ -31,32 +31,8 @@ jobs:
           name: reconciledb-vscode-universal
           path: artifacts/*-universal.vsix
 
-  package-win32-x64:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies and Windows native driver
-        run: npm ci
-      - name: Verify native SQL Server driver
-        shell: pwsh
-        run: |
-          if (-not (Test-Path node_modules/msnodesqlv8/build/Release/sqlserver.node)) {
-            throw 'msnodesqlv8 native binary was not installed'
-          }
-      - run: npm run package:win32-x64
-      - uses: actions/upload-artifact@v4
-        with:
-          name: reconciledb-vscode-win32-x64
-          path: artifacts/*-win32-x64.vsix
-
   publish:
-    needs:
-      - package-universal
-      - package-win32-x64
+    needs: package-universal
     runs-on: ubuntu-latest
     environment: extension-release
     steps:
@@ -83,16 +59,8 @@ jobs:
         run: npm exec -- vsce publish --packagePath artifacts/*-universal.vsix -p "$VSCE_PAT"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      - name: Publish Windows x64 package to Visual Studio Marketplace
-        run: npm exec -- vsce publish --packagePath artifacts/*-win32-x64.vsix -p "$VSCE_PAT"
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
       - name: Publish universal package to Open VSX
         run: npm exec -- ovsx publish artifacts/*-universal.vsix -p "$OPEN_VSX_TOKEN"
-        env:
-          OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
-      - name: Publish Windows x64 package to Open VSX
-        run: npm exec -- ovsx publish artifacts/*-win32-x64.vsix -p "$OPEN_VSX_TOKEN"
         env:
           OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
       - name: Create GitHub release

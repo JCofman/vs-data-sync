@@ -1,12 +1,16 @@
 # ReconcileDB for VS Code
 
-## 1.0.0
+## 1.0.1
 
 - First independently published ReconcileDB release under `jcofman.reconciledb-vscode`.
 - Added row-data comparison and migration support for SQL Server-to-SQL Server workflows alongside PostgreSQL-to-PostgreSQL workflows.
-- Added a Windows x64 package with optional SQL Server integrated authentication through `msnodesqlv8`.
+- Supports SQL Server username/password authentication through the universal desktop package.
 - Retained the existing `data-sync.*` command IDs and configuration format for compatibility.
 - Rebranded the extension and added prominent attribution to original Data Sync maintainer Nguyen Ngoc Long.
+
+## 1.0.0
+
+- Unpublished release candidate. Native Windows authentication packaging was removed before the first public release.
 
 ## Upstream Data Sync release history
 
