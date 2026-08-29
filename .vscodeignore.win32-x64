@@ -19,7 +19,9 @@ package-lock.json
 *.vsix
 dist/**
 !dist/extension.js
+!dist/native/
+!dist/native/**
 dist/**/*.map
 tsconfig.json
-webpack.config.json
+webpack.config.js
 .history

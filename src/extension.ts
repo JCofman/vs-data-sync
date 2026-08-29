@@ -24,7 +24,7 @@ export interface ExtensionConfiguration extends WorkspaceConfiguration {
 
 export async function activate(context: ExtensionContext) {
     // Print welcome message
-    logger.info('Starting Data Sync extensions.');
+    logger.info('Starting ReconcileDB for VS Code.');
 
     // Global command
     context.subscriptions.push(

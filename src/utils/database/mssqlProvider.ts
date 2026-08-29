@@ -1,55 +1,25 @@
-import * as mssqlV8 from 'mssql/msnodesqlv8';
 import * as mssql from 'mssql';
 
 import { DatabaseProvider, DatabaseConfig } from './databaseProvider';
 import { TableConfig } from '../utils';
 import { QueryResultRow } from '../types';
 import { validateIdentifier } from './validateIdentifier';
+import { connectMssql, MssqlDriver } from './mssqlConnection';
 
 export class MssqlProvider implements DatabaseProvider {
     private pool: mssql.ConnectionPool | null = null;
     private transaction: mssql.Transaction | null = null;
     private config: DatabaseConfig;
-    private driver: typeof mssql | typeof mssqlV8 = mssql;
+    private driver: MssqlDriver = mssql;
 
     constructor(config: DatabaseConfig) {
         this.config = config;
     }
 
     async connect(): Promise<void> {
-        if (this.config.connectionString) {
-            const parsed = mssql.ConnectionPool.parseConnectionString(this.config.connectionString);
-            const hasUser = !!parsed.user;
-            const hasPassword = !!parsed.password;
-            // Windows Auth is only supported with 'msnodesqlv8' driver
-            if (!hasUser || !hasPassword) {
-                parsed.driver = 'msnodesqlv8';
-                parsed.options = {
-                    ...parsed.options,
-                    trustServerCertificate: true,
-                    trustedConnection: true
-                };
-                this.pool = await new mssqlV8.ConnectionPool(parsed).connect();
-                this.driver = mssqlV8;
-            } else {
-                this.pool = await new mssql.ConnectionPool(this.config.connectionString).connect();
-                this.driver = mssql;
-            }
-        } else {
-            this.pool = await new mssql.ConnectionPool({
-                server: this.config.host,
-                port: this.config.port,
-                user: this.config.user,
-                password: this.config.password,
-                database: this.config.database,
-                domain: this.config.domain,
-                options: {
-                    trustServerCertificate: this.config.mssqlOptions?.trustServerCertificate ?? true,
-                    encrypt: this.config.mssqlOptions?.encrypt ?? true
-                }
-            }).connect();
-            this.driver = mssql;
-        }
+        const connection = await connectMssql(this.config);
+        this.pool = connection.pool;
+        this.driver = connection.driver;
     }
 
     async disconnect(): Promise<void> {
@@ -65,7 +35,7 @@ export class MssqlProvider implements DatabaseProvider {
 
     async beginTransaction(): Promise<void> {
         if (!this.pool) throw new Error('Not connected');
-        this.transaction = new this.driver.Transaction(this.pool); //
+        this.transaction = new this.driver.Transaction(this.pool);
         await this.transaction.begin();
     }
 
@@ -98,7 +68,7 @@ export class MssqlProvider implements DatabaseProvider {
         if (!this.pool) throw new Error('Not connected');
         const request = this.transaction
             ? new this.driver.Request(this.transaction)
-            : new this.driver.Request(this.pool); //
+            : new this.driver.Request(this.pool);
 
         const result = await request.query(sql);
         for (const row of result.recordset) {

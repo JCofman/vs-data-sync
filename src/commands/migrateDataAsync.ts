@@ -2,7 +2,6 @@ import fs from 'fs-extra';
 import { EOL } from 'node:os';
 import pg, { PoolConfig } from 'pg';
 import * as mssql from 'mssql';
-import * as mssqlV8 from 'mssql/msnodesqlv8';
 
 import { ProgressLocation, QuickPickItem, window, workspace } from 'vscode';
 import { ExtensionConfiguration } from '../extension';
@@ -25,6 +24,7 @@ import {
     showInputPassword
 } from '../utils/utils';
 import { tryConnectionAsync } from './actions/tryConnectionAsync';
+import { connectMssql, MssqlDriver } from '../utils/database/mssqlConnection';
 
 const handleWarningQueries = (
     warnQueries: { rawQuery: string; affected: number }[],
@@ -411,9 +411,9 @@ const executeMigrateMssql = async (options: {
 }): Promise<{ insert: number; update: number; delete: number; error?: unknown }> => {
     const { poolConfig, migrateConfig, migrateUpLines } = options;
 
-    let driver: typeof mssql | typeof mssqlV8 = mssql;
-    let pool: mssql.ConnectionPool | mssqlV8.ConnectionPool | undefined = undefined;
-    let transaction: mssql.Transaction | mssqlV8.Transaction | undefined = undefined;
+    let driver: MssqlDriver = mssql;
+    let pool: mssql.ConnectionPool | undefined = undefined;
+    let transaction: mssql.Transaction | undefined = undefined;
 
     let rowAffected = {
         insert: 0,
@@ -422,39 +422,9 @@ const executeMigrateMssql = async (options: {
     };
 
     try {
-        if (poolConfig.connectionString) {
-            const parsed = mssql.ConnectionPool.parseConnectionString(poolConfig.connectionString);
-            const hasUser = !!parsed.user;
-            const hasPassword = !!parsed.password;
-
-            if (!hasUser || !hasPassword) {
-                parsed.driver = 'msnodesqlv8';
-                parsed.options = {
-                    ...parsed.options,
-                    trustServerCertificate: true,
-                    trustedConnection: true
-                };
-                pool = await new mssqlV8.ConnectionPool(parsed).connect();
-                driver = mssqlV8;
-            } else {
-                pool = await new mssql.ConnectionPool(poolConfig.connectionString).connect();
-                driver = mssql;
-            }
-        } else {
-            pool = await new mssql.ConnectionPool({
-                server: poolConfig.host,
-                port: poolConfig.port,
-                user: poolConfig.user,
-                password: poolConfig.password,
-                database: poolConfig.database,
-                domain: poolConfig.domain,
-                options: {
-                    trustServerCertificate: poolConfig.mssqlOptions?.trustServerCertificate ?? true,
-                    encrypt: poolConfig.mssqlOptions?.encrypt ?? true
-                }
-            }).connect();
-            driver = mssql;
-        }
+        const connection = await connectMssql(poolConfig);
+        pool = connection.pool;
+        driver = connection.driver;
 
         transaction = new driver.Transaction(pool);
         await transaction.begin();

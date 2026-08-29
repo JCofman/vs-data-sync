@@ -1,0 +1,96 @@
+name: Release extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package-universal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Verify tag matches package version
+        if: github.event_name == 'push'
+        shell: bash
+        run: node -e "const expected='v'+require('./package.json').version; if (process.env.GITHUB_REF_NAME !== expected) { throw new Error(`Expected tag ${expected}, got ${process.env.GITHUB_REF_NAME}`); }"
+      - name: Install dependencies without optional native builds
+        run: npm ci --ignore-scripts
+      - run: npm run compile
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run package:universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconciledb-vscode-universal
+          path: artifacts/reconciledb-vscode-1.0.0-universal.vsix
+
+  package-win32-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies and Windows native driver
+        run: npm ci
+      - name: Verify native SQL Server driver
+        shell: pwsh
+        run: |
+          if (-not (Test-Path node_modules/msnodesqlv8/build/Release/sqlserver.node)) {
+            throw 'msnodesqlv8 native binary was not installed'
+          }
+      - run: npm run package:win32-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconciledb-vscode-win32-x64
+          path: artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix
+
+  publish:
+    needs:
+      - package-universal
+      - package-win32-x64
+    runs-on: ubuntu-latest
+    environment: extension-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: reconciledb-vscode-*
+          path: artifacts
+          merge-multiple: true
+      - name: Publish universal package to Visual Studio Marketplace
+        run: npm exec -- vsce publish --packagePath artifacts/reconciledb-vscode-1.0.0-universal.vsix -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish Windows x64 package to Visual Studio Marketplace
+        run: npm exec -- vsce publish --packagePath artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix -p "$VSCE_PAT"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish universal package to Open VSX
+        run: npm exec -- ovsx publish artifacts/reconciledb-vscode-1.0.0-universal.vsix -p "$OPEN_VSX_TOKEN"
+        env:
+          OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
+      - name: Publish Windows x64 package to Open VSX
+        run: npm exec -- ovsx publish artifacts/reconciledb-vscode-1.0.0-win32-x64.vsix -p "$OPEN_VSX_TOKEN"
+        env:
+          OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" artifacts/*.vsix --verify-tag --generate-notes --title "ReconcileDB for VS Code 1.0.0"

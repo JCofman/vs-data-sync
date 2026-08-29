@@ -106,7 +106,6 @@ const nodeExtensionConfig = {
     // keep externals for vscode
     externals: {
         vscode: 'commonjs vscode',
-        msnodesqlv8: 'commonjs msnodesqlv8', // do not bundle, require at runtime
         mssql: 'commonjs mssql', // do not bundle, require at runtime
         tedious: 'commonjs tedious' // do not bundle, require at runtime
     },
