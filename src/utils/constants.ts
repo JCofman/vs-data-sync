@@ -1,5 +1,5 @@
 export const APP_ID = 'data-sync';
-export const APP_NAME = 'Data Sync';
+export const APP_NAME = 'ReconcileDB';
 
 export const extCommands = {
     refreshInfoView: `${APP_ID}.refresh-info`,

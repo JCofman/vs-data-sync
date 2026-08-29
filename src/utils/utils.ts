@@ -5,6 +5,8 @@ import { Uri, window, workspace } from 'vscode';
 import { constants } from './constants';
 import { logger } from './logger';
 import { SystemInfo } from './systemInfo';
+import { DatabaseConfig } from './database/databaseProvider';
+import { formatDatabaseInfo } from './database/databaseInfo';
 
 export type TableDetail = {
     primaryKeys: string[];
@@ -52,8 +54,8 @@ export type MigrateConfig = {
 };
 
 export type PatternConfig = {
-    source: PoolConfig;
-    target: PoolConfig;
+    source: DatabaseConfig;
+    target: DatabaseConfig;
     diff: {
         format?: boolean;
         tables: TableConfig[];
@@ -132,10 +134,8 @@ export const upperToPascal = (input: string): string => {
     return capitalizedWords.join('');
 };
 
-export const getDatabaseInfo = (poolConfig: PoolConfig): string => {
-    const { user, host, port, database } = poolConfig;
-    const maskPassword = '*'.repeat(6);
-    return `postgres://${user}:${maskPassword}@${host}:${port}/${database}`;
+export const getDatabaseInfo = (poolConfig: DatabaseConfig): string => {
+    return formatDatabaseInfo(poolConfig);
 };
 
 export const getTablePrimaryKey = (table: TableConfig, tableDetail: TableDetail, record: any): string => {
@@ -172,7 +172,7 @@ export const getMigrationDirs = async (migrationRoot: string): Promise<{ name: s
 
 export const showInputPassword = async (
     from: 'source' | 'target',
-    poolConfig: PoolConfig
+    poolConfig: DatabaseConfig
 ): Promise<string | undefined> => {
     const passwordInput = await window.showInputBox({
         title: `Please enter a password to use with ${from} database.`,

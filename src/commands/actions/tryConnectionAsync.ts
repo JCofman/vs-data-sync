@@ -1,32 +1,17 @@
 import { logger } from '../../utils/logger';
-import { getDatabaseInfo } from '../../utils/utils';
-import { Client, PoolConfig } from 'pg';
+import { DatabaseConfig } from '../../utils/database/databaseProvider';
+import { createDatabaseProvider } from '../../utils/database/databaseProviderFactory';
 
-/**
- * Check database connection
- */
-export const tryConnectionAsync = async (poolConfig: PoolConfig): Promise<boolean> => {
-    let client: Client | undefined = undefined;
+export const tryConnectionAsync = async (dbConfig: DatabaseConfig): Promise<boolean> => {
+    const dbProvider = createDatabaseProvider(dbConfig);
     try {
-        client = new Client({
-            host: poolConfig.host,
-            user: poolConfig.user,
-            password: poolConfig.password,
-            port: poolConfig.port,
-            database: poolConfig.database || 'postgres'
-        });
-        await client.connect();
-
-        // Get current version
-        logger.info(`Connecting to the '${getDatabaseInfo(poolConfig)}' successful.`);
+        await dbProvider.connect();
+        logger.info(`Connecting to the '${dbProvider.getDatabaseInfo()}' successful.`);
         return true;
     } catch (err) {
-        logger.info(`Could not connect to the '${getDatabaseInfo(poolConfig)}'.`, err);
+        logger.info(`Could not connect to the '${dbProvider.getDatabaseInfo()}'.`, err);
         return false;
     } finally {
-        if (client) {
-            await client.end();
-            client = undefined;
-        }
+        await dbProvider.disconnect();
     }
 };

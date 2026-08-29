@@ -1,51 +1,43 @@
 {
-    "name": "data-sync",
-    "displayName": "Data Sync",
-    "description": "Compares two databases, local or remote, and automatically generates a migration file of the differences.",
+    "name": "reconciledb-vscode",
+    "displayName": "ReconcileDB for VS Code",
+    "description": "Compare and reconcile selected row data between PostgreSQL or SQL Server databases.",
     "icon": "assets/logo.png",
-    "pricing": "Trial",
-    "version": "1.0.31",
+    "pricing": "Free",
+    "version": "1.0.0",
     "main": "./dist/extension.js",
-    "browser": "./dist/web/extension.js",
     "preview": false,
     "qna": "marketplace",
     "repository": {
         "type": "git",
-        "url": "https://github.com/nguyenngoclongdev/vs-data-sync"
+        "url": "https://github.com/JCofman/vs-data-sync"
     },
     "bugs": {
-        "url": "https://github.com/nguyenngoclongdev/vs-data-sync/issues"
+        "url": "https://github.com/JCofman/vs-data-sync/issues"
     },
-    "sponsor": {
-        "url": "https://github.com/sponsors/nguyenngoclongdev"
-    },
-    "homepage": "https://nguyenngoclongdev.github.io",
+    "homepage": "https://github.com/JCofman/vs-data-sync#readme",
     "galleryBanner": {
         "color": "#11131C",
         "theme": "dark"
     },
-    "badges": [
-        {
-            "url": "https://img.shields.io/badge/Support%20this%20project-%F0%9F%92%96-green.svg?style=flat-square",
-            "href": "https://github.com/sponsors/nguyenngoclongdev",
-            "description": "Support us!"
-        }
-    ],
     "categories": [
         "Other"
     ],
     "keywords": [
         "database",
         "management",
+        "reconciliation",
+        "compare",
         "sync",
-        "postgresql"
+        "postgresql",
+        "mssql"
     ],
     "contributes": {
         "viewsContainers": {
             "activitybar": [
                 {
                     "id": "data-sync-activity-bar",
-                    "title": "Data Sync",
+                    "title": "ReconcileDB",
                     "icon": "assets/logo.svg"
                 }
             ]
@@ -72,7 +64,7 @@
         "viewsWelcome": [
             {
                 "view": "data-sync-info",
-                "contents": "Welcome to Data Sync for Visual Studio Code.\nLet's start by generating configuration:\n[Generate Configuration](command:data-sync.generate-config)\nTo learn more about how to sync data in VS Code [read our docs!](https://github.com/nguyenngoclongdev/vs-data-sync/)"
+                "contents": "Welcome to ReconcileDB for VS Code.\nStart by generating a configuration:\n[Generate Configuration](command:data-sync.generate-config)\n[Read the documentation](https://github.com/JCofman/vs-data-sync#readme)"
             },
             {
                 "view": "data-sync-compare",
@@ -86,12 +78,12 @@
         "commands": [
             {
                 "command": "data-sync.generate-config",
-                "category": "Data Sync",
+                "category": "ReconcileDB",
                 "title": "Generate Configuration File"
             },
             {
                 "command": "data-sync.show-config",
-                "category": "Data Sync",
+                "category": "ReconcileDB",
                 "title": "Show Configuration",
                 "icon": "$(gear)"
             },
@@ -278,7 +270,7 @@
             ]
         },
         "configuration": {
-            "title": "Data Sync",
+            "title": "ReconcileDB",
             "properties": {
                 "data-sync.configFilePath": {
                     "type": "string",
@@ -304,29 +296,34 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run vscode-desktop:publish && npm run vscode-web:publish",
+        "vscode:prepublish": "npm run vscode-desktop:publish",
         "vscode-desktop:publish": "npm run esbuild-base -- --minify",
         "vscode-web:publish": "npm run compile-web -- --mode production --devtool false",
-        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node",
+        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --alias:msnodesqlv8=./src/utils/database/msnodesqlv8Runtime.ts --format=cjs --platform=node --loader:.node=file",
         "esbuild": "npm run esbuild-base -- --sourcemap",
         "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
         "lint": "eslint src --ext ts",
         "cs": "changeset",
-        "pree2e": "code --uninstall-extension nguyenngoclong.data-sync || true",
-        "e2e": "vsce package -o ./data-sync.vsix",
-        "poste2e": "code --install-extension ./data-sync.vsix",
+        "pree2e": "code --uninstall-extension jcofman.reconciledb-vscode || true",
+        "e2e": "npm run package:universal",
+        "poste2e": "code --install-extension ./artifacts/reconciledb-vscode-1.0.0-universal.vsix",
+        "prepackage:universal": "node ./scripts/prepareArtifacts.js",
+        "package:universal": "node ./scripts/packageExtension.js universal",
+        "prepackage:win32-x64": "node ./scripts/stageWindowsNativeDriver.js",
+        "package:win32-x64": "node ./scripts/packageExtension.js win32-x64",
         "compile-web": "webpack",
         "watch-web": "webpack --watch",
         "esbuild-test": "esbuild ./src/__test__/*.ts ./src/__test__/**/*.ts --outdir=./dist/__test__ --format=cjs --platform=node",
+        "test:unit": "npm run compile && npm run esbuild-test && mocha --ui tdd \"dist/__test__/unit/**/*.test.js\"",
         "clean-test": "rm -rf src/__test__/fixtures/*.ts",
         "pretest": "npm run clean-test && npm run esbuild && npm run esbuild-test",
         "test": "node ./dist/__test__/runTest.js",
         "posttest": "rm -rf .vscode-test/user-data"
     },
     "engines": {
-        "vscode": "^1.64.0"
+        "vscode": "^1.95.0"
     },
     "activationEvents": [
         "onStartupFinished"
@@ -338,12 +335,14 @@
         "@types/glob": "^8.1.0",
         "@types/lodash.groupby": "^4.6.7",
         "@types/mocha": "^10.0.1",
+        "@types/mssql": "^9.1.7",
         "@types/node": "^20.2.5",
         "@types/pg": "^8.10.2",
         "@types/pg-promise": "^5.4.3",
         "@types/pg-query-stream": "^3.4.0",
         "@types/vscode": "^1.64.0",
         "@types/webpack-env": "^1.18.1",
+        "@vscode/vsce": "3.9.2",
         "@typescript-eslint/eslint-plugin": "^6.0.0",
         "@typescript-eslint/parser": "^6.0.0",
         "@vscode/test-electron": "^2.3.2",
@@ -356,6 +355,7 @@
         "glob": "^10.2.6",
         "mocha": "^10.2.0",
         "os-browserify": "^0.3.0",
+        "ovsx": "1.1.1",
         "path-browserify": "^1.0.1",
         "process": "^0.11.10",
         "stream-browserify": "^3.0.0",
@@ -371,14 +371,18 @@
         "diff": "^5.1.0",
         "fs-extra": "^11.1.1",
         "lodash.groupby": "^4.6.0",
+        "mssql": "^12.0.0",
         "pg": "^8.11.1",
         "pg-iterator": "^0.3.0",
         "pg-promise": "^11.5.0"
     },
-    "author": {
-        "name": "Nguyen Ngoc Long",
-        "url": "https://nguyenngoclongdev.github.io"
+    "optionalDependencies": {
+        "msnodesqlv8": "5.3.0"
     },
-    "publisher": "nguyenngoclong",
+    "author": {
+        "name": "Nguyen Ngoc Long and ReconcileDB contributors",
+        "url": "https://github.com/JCofman/vs-data-sync"
+    },
+    "publisher": "jcofman",
     "license": "MIT"
 }

@@ -30,8 +30,9 @@ const writePlanOutput = async (filePath: string, lines: string[]): Promise<strin
 export const generatePlanAsync = async (options: {
     fileManager: FileManager;
     tables: TableConfig[];
+    dbType: 'postgres' | 'mssql';
 }): Promise<boolean> => {
-    const { fileManager, tables } = options;
+    const { fileManager, tables, dbType } = options;
 
     // Read plan detail
     const sessionPath = fileManager.getSessionPath();
@@ -85,7 +86,7 @@ export const generatePlanAsync = async (options: {
                 // Line start with '+' => insert
                 if (line.startsWith('+')) {
                     const values = JSON.parse(line.substring(1));
-                    const insertQuery = makeInsertQuery(table, planDetail, values);
+                    const insertQuery = makeInsertQuery(table, planDetail, values, dbType);
                     allPlanLines.push(insertQuery);
                     insertPlanLines.push(insertQuery);
                     planDetail.insert++;
@@ -95,7 +96,7 @@ export const generatePlanAsync = async (options: {
                 // Line start with '-' => remove
                 if (line.startsWith('-')) {
                     const values = JSON.parse(line.substring(1));
-                    const deleteQuery = makeDeleteQuery(table, planDetail, values);
+                    const deleteQuery = makeDeleteQuery(table, planDetail, values, dbType);
                     allPlanLines.push(deleteQuery);
                     deletePlanLines.push(deleteQuery);
                     planDetail.delete++;
@@ -130,14 +131,14 @@ export const generatePlanAsync = async (options: {
                         const currentRecord = JSON.parse(currentLine);
                         switch (operation) {
                             case '+': {
-                                const insertQuery = makeInsertQuery(table, planDetail, currentRecord);
+                                const insertQuery = makeInsertQuery(table, planDetail, currentRecord, dbType);
                                 allPlanLines.push(insertQuery);
                                 insertPlanLines.push(insertQuery);
                                 planDetail.insert++;
                                 break;
                             }
                             case '-': {
-                                const deleteQuery = makeDeleteQuery(table, planDetail, currentRecord);
+                                const deleteQuery = makeDeleteQuery(table, planDetail, currentRecord, dbType);
                                 allPlanLines.push(deleteQuery);
                                 deletePlanLines.push(deleteQuery);
                                 planDetail.delete++;
@@ -160,13 +161,13 @@ export const generatePlanAsync = async (options: {
                         const sameCurrentLine = groupItems[1];
                         if (rawCurrentLine.startsWith('+') && sameCurrentLine.startsWith('-')) {
                             const record = JSON.parse(rawCurrentLine.substring(1));
-                            const updateQuery = makeUpdateQuery(table, planDetail, record);
+                            const updateQuery = makeUpdateQuery(table, planDetail, record, dbType);
                             allPlanLines.push(updateQuery);
                             updatePlanLines.push(updateQuery);
                             planDetail.update++;
                         } else if (rawCurrentLine.startsWith('-') && sameCurrentLine.startsWith('+')) {
                             const record = JSON.parse(sameCurrentLine.substring(1));
-                            const updateQuery = makeUpdateQuery(table, planDetail, record);
+                            const updateQuery = makeUpdateQuery(table, planDetail, record, dbType);
                             allPlanLines.push(updateQuery);
                             updatePlanLines.push(updateQuery);
                             planDetail.update++;
@@ -192,17 +193,14 @@ export const generatePlanAsync = async (options: {
     await writePlanOutput(allPlanFilePath, allPlanLines);
     logger.info(`The ${allPlanFilePath} was successfully generated.`);
 
-    // Output all plan files
     const insertPlanFilePath = fileManager.getPlanOutputPath('insert');
     await writePlanOutput(insertPlanFilePath, insertPlanLines);
     logger.info(`The ${insertPlanFilePath} was successfully generated.`);
 
-    // Output all plan files
     const updatePlanFilePath = fileManager.getPlanOutputPath('update');
     await writePlanOutput(updatePlanFilePath, updatePlanLines);
     logger.info(`The ${updatePlanFilePath} was successfully generated.`);
 
-    // Output all plan files
     const deletePlanFilePath = fileManager.getPlanOutputPath('delete');
     await writePlanOutput(deletePlanFilePath, deletePlanLines);
     logger.info(`The ${deletePlanFilePath} was successfully generated.`);

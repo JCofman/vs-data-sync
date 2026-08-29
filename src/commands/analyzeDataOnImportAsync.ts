@@ -6,6 +6,7 @@ import { ConfigManager } from '../utils/configManager';
 import { APP_ID, APP_NAME, extCommands } from '../utils/constants';
 import { FileManager, getMigrationRoot } from '../utils/fileManager';
 import { logger } from '../utils/logger';
+import { resolvePatternDatabaseType } from '../utils/database/databaseType';
 import {
     showIsAnalyzingWarning as showAnalyzingWarning,
     showIncorrectConfigWarning,
@@ -141,6 +142,7 @@ export const analyzeDataOnImportAsync = async (): Promise<void> => {
             showIncorrectConfigWarning(selectedPattern);
             return;
         }
+        const dbType = resolvePatternDatabaseType(pattern);
 
         // Show output panel
         const config = workspace.getConfiguration(APP_ID) as ExtensionConfiguration;
@@ -167,7 +169,7 @@ export const analyzeDataOnImportAsync = async (): Promise<void> => {
 
                 // Generate plan files (from diff files, generate to plan)
                 showProgressReport(progress, 'Generating plan files...');
-                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables });
+                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables, dbType });
                 if (!isGeneratePlanSuccess) {
                     showProgressWarn('Failed to generate plan files!');
                     return;

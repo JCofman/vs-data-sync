@@ -4,6 +4,7 @@ import { ConfigManager } from '../utils/configManager';
 import { APP_ID, APP_NAME, extCommands } from '../utils/constants';
 import { FileManager } from '../utils/fileManager';
 import { logger } from '../utils/logger';
+import { resolvePatternDatabaseType } from '../utils/database/databaseType';
 import { showIncorrectConfigWarning, showNoConfigWarning, showNoPatternWarning } from '../utils/notification';
 import { showProgressReport, showProgressWarn } from '../utils/progress';
 import { showErrorMessageWithDetail } from '../utils/utils';
@@ -42,7 +43,11 @@ export const analyzeDataOnRefreshAsync = async (selectedPattern: string, migrate
 
         // Init configuration
         const { patterns, verbose } = configContent;
+
         const pattern = patterns[selectedPattern];
+
+        const dbType = resolvePatternDatabaseType(pattern);
+
         const tables = pattern?.diff?.tables;
         if (!tables || tables.length <= 0) {
             showIncorrectConfigWarning();
@@ -81,7 +86,7 @@ export const analyzeDataOnRefreshAsync = async (selectedPattern: string, migrate
 
                 // Generate plan files (from diff files, generate to plan)
                 showProgressReport(progress, 'Generating plan files...');
-                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables });
+                const isGeneratePlanSuccess = await generatePlanAsync({ fileManager, tables, dbType });
                 if (!isGeneratePlanSuccess) {
                     showProgressWarn('Failed to generate plan files!');
                     return;

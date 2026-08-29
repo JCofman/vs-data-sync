@@ -52,7 +52,7 @@ const webExtensionConfig = {
             fs: false,
             net: false,
             tls: false,
-            dns: false,
+            dns: false
         }
     },
     module: {
@@ -88,4 +88,28 @@ const webExtensionConfig = {
     devtool: 'nosources-source-map' // create a source map that points to the original source file
 };
 
-module.exports = [webExtensionConfig];
+const nodeExtensionConfig = {
+    ...webExtensionConfig,
+    target: 'node',
+    output: {
+        filename: '[name].js',
+        path: path.join(__dirname, './dist'),
+        libraryTarget: 'commonjs2'
+    },
+    // Node build doesn't need browser fallbacks
+    resolve: {
+        mainFields: ['module', 'main'],
+        extensions: ['.ts', '.js']
+    },
+    // allow fs and other Node core modules in the node build
+    externalsPresets: { node: true },
+    // keep externals for vscode
+    externals: {
+        vscode: 'commonjs vscode',
+        mssql: 'commonjs mssql', // do not bundle, require at runtime
+        tedious: 'commonjs tedious' // do not bundle, require at runtime
+    },
+    devtool: 'nosources-source-map'
+};
+
+module.exports = [nodeExtensionConfig];
