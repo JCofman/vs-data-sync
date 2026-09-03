@@ -15,8 +15,10 @@ Use environment protection rules to require approval before the publish job star
 
 1. Merge a green pull request into `main`.
 2. Confirm `package.json` and `CHANGELOG.md` contain the intended version.
-3. Create and push the matching tag, for example `v1.0.1` for package version `1.0.1`.
+3. Create and push the matching tag, for example `v1.0.2` for package version `1.0.2`.
 4. Approve the `extension-release` environment deployment after the package job passes.
 5. Verify the Marketplace, Open VSX, and GitHub release listings contain the universal VSIX.
 
 Do not reuse or move a release tag. Increment the package version and create a new tag for a corrected release.
+
+The workflow verifies access to the `jcofman` Open VSX namespace before publishing. On the first release, it creates the namespace with the configured token. Both registry commands skip an already-published version, so rerunning a partially completed release is safe.

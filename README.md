@@ -21,7 +21,7 @@ Compare selected row data between two databases with the same schema, inspect th
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.0.1` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.0.2` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 
