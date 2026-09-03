@@ -4,7 +4,7 @@
     "description": "Compare and reconcile selected row data between PostgreSQL or SQL Server databases.",
     "icon": "assets/logo.png",
     "pricing": "Free",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "main": "./dist/extension.js",
     "preview": false,
     "qna": "marketplace",
@@ -306,9 +306,9 @@
         "watch": "tsc -watch -p ./",
         "lint": "eslint src --ext ts",
         "cs": "changeset",
-        "pree2e": "code --uninstall-extension jcofman.reconciledb-vscode || true",
+        "pree2e": "code --uninstall-extension JacobCofman.reconciledb-vscode || true",
         "e2e": "npm run package:universal",
-        "poste2e": "code --install-extension ./artifacts/reconciledb-vscode-1.0.2-universal.vsix",
+        "poste2e": "code --install-extension ./artifacts/*-universal.vsix",
         "prepackage:universal": "node ./scripts/prepareArtifacts.js",
         "package:universal": "node ./scripts/packageExtension.js universal",
         "compile-web": "webpack",
@@ -378,6 +378,6 @@
         "name": "Nguyen Ngoc Long and ReconcileDB contributors",
         "url": "https://github.com/JCofman/vs-data-sync"
     },
-    "publisher": "jcofman",
+    "publisher": "JacobCofman",
     "license": "MIT"
 }

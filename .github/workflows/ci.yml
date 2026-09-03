@@ -24,4 +24,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: reconciledb-vscode-universal
-          path: artifacts/reconciledb-vscode-1.0.0-universal.vsix
+          path: artifacts/*-universal.vsix

@@ -1,5 +1,10 @@
 # ReconcileDB for VS Code
 
+## 1.0.3
+
+- Corrected the extension publisher ID to the existing `JacobCofman` Marketplace account.
+- Removed password placeholder values from the packaged README so Open VSX does not mistake the documentation for embedded credentials.
+
 ## 1.0.2
 
 - Made Marketplace and Open VSX publishing safe to retry after partial failures.
