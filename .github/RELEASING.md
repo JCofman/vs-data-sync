@@ -6,8 +6,8 @@ Releases are produced only from version tags. The workflow builds and tests one 
 
 Create the protected GitHub environment `extension-release` and add both environment secrets:
 
-- `VSCE_PAT`: Azure DevOps personal access token authorized to publish under the `jcofman` Visual Studio Marketplace publisher.
-- `OPEN_VSX_TOKEN`: Open VSX access token authorized to publish the `jcofman.reconciledb-vscode` namespace.
+- `VSCE_PAT`: Azure DevOps personal access token authorized to publish under the `JacobCofman` Visual Studio Marketplace publisher.
+- `OPEN_VSX_TOKEN`: Open VSX access token authorized to publish the `JacobCofman.reconciledb-vscode` namespace.
 
 Use environment protection rules to require approval before the publish job starts. The workflow verifies both secrets before writing to either registry, preventing a release from starting with only one registry configured.
 
@@ -21,4 +21,4 @@ Use environment protection rules to require approval before the publish job star
 
 Do not reuse or move a release tag. Increment the package version and create a new tag for a corrected release.
 
-The workflow verifies access to the `jcofman` Open VSX namespace before publishing. On the first release, it creates the namespace with the configured token. Both registry commands skip an already-published version, so rerunning a partially completed release is safe.
+The workflow reads the publisher ID from `package.json`, verifies Marketplace access, and verifies the matching Open VSX namespace before publishing. On the first Open VSX release, it creates the namespace with the configured token. Both registry commands skip an already-published version, so rerunning a partially completed release is safe.

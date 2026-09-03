@@ -55,14 +55,17 @@ jobs:
         run: |
           test -n "$VSCE_PAT" || { echo 'VSCE_PAT is not configured in the extension-release environment.'; exit 1; }
           test -n "$OPEN_VSX_TOKEN" || { echo 'OPEN_VSX_TOKEN is not configured in the extension-release environment.'; exit 1; }
+          PUBLISHER=$(node -p "require('./package.json').publisher")
+          npm exec -- vsce verify-pat "$PUBLISHER" -p "$VSCE_PAT"
       - name: Verify or create Open VSX namespace
         shell: bash
         env:
           OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
         run: |
-          if ! npm exec -- ovsx verify-pat jcofman -p "$OPEN_VSX_TOKEN"; then
-            npm exec -- ovsx create-namespace jcofman -p "$OPEN_VSX_TOKEN"
-            npm exec -- ovsx verify-pat jcofman -p "$OPEN_VSX_TOKEN"
+          PUBLISHER=$(node -p "require('./package.json').publisher")
+          if ! npm exec -- ovsx verify-pat "$PUBLISHER" -p "$OPEN_VSX_TOKEN"; then
+            npm exec -- ovsx create-namespace "$PUBLISHER" -p "$OPEN_VSX_TOKEN"
+            npm exec -- ovsx verify-pat "$PUBLISHER" -p "$OPEN_VSX_TOKEN"
           fi
       - name: Publish universal package to Visual Studio Marketplace
         run: npm exec -- vsce publish --skip-duplicate --packagePath artifacts/*-universal.vsix -p "$VSCE_PAT"

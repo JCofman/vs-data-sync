@@ -8,8 +8,8 @@ Compare selected row data between two databases with the same schema, inspect th
 
 > **Thank you, Nguyen Ngoc Long.** ReconcileDB for VS Code is an independently maintained fork of [Data Sync](https://github.com/nguyenngoclongdev/vs-data-sync), originally created by Nguyen Ngoc Long. His work made this extension possible. The upstream copyright and MIT license are preserved in [LICENSE](LICENSE). This project is not affiliated with or endorsed by the original maintainer.
 
-[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/jcofman.reconciledb-vscode)](https://marketplace.visualstudio.com/items?itemName=jcofman.reconciledb-vscode)
-[![Open VSX](https://img.shields.io/open-vsx/v/jcofman/reconciledb-vscode)](https://open-vsx.org/extension/jcofman/reconciledb-vscode)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/JacobCofman.reconciledb-vscode)](https://marketplace.visualstudio.com/items?itemName=JacobCofman.reconciledb-vscode)
+[![Open VSX](https://img.shields.io/open-vsx/v/JacobCofman/reconciledb-vscode)](https://open-vsx.org/extension/JacobCofman/reconciledb-vscode)
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 
 ## What it does
@@ -21,11 +21,11 @@ Compare selected row data between two databases with the same schema, inspect th
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.0.2` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.0.3` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 
-Install **ReconcileDB for VS Code** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=jcofman.reconciledb-vscode) or [Open VSX Registry](https://open-vsx.org/extension/jcofman/reconciledb-vscode).
+Install **ReconcileDB for VS Code** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=JacobCofman.reconciledb-vscode) or [Open VSX Registry](https://open-vsx.org/extension/JacobCofman/reconciledb-vscode).
 
 The universal desktop package supports PostgreSQL and SQL Server username/password authentication on Windows, macOS, and Linux.
 
@@ -51,16 +51,14 @@ The existing `data-sync.*` command IDs, settings, and `database.json` format rem
         "host": "staging.example.test",
         "port": 5432,
         "database": "app",
-        "user": "reconciler",
-        "password": "prompted-if-omitted"
+        "user": "reconciler"
       },
       "target": {
         "type": "postgres",
         "host": "localhost",
         "port": 5432,
         "database": "app",
-        "user": "postgres",
-        "password": "prompted-if-omitted"
+        "user": "postgres"
       },
       "diff": {
         "tables": [
@@ -87,14 +85,19 @@ The existing `data-sync.*` command IDs, settings, and `database.json` format rem
 
 ### SQL Server example
 
-For SQL Server authentication, use the same structure with `"type": "mssql"`, normally on port `1433`. You can also provide a username/password connection string:
+For SQL Server authentication, use the same structure with `"type": "mssql"`, normally on port `1433`:
 
 ```jsonc
 {
   "type": "mssql",
-  "connectionString": "Server=localhost;Database=app;User Id=reconciler;Password=secret;Encrypt=true;TrustServerCertificate=true;"
+  "host": "localhost",
+  "port": 1433,
+  "database": "app",
+  "user": "reconciler"
 }
 ```
+
+When the password property is omitted, ReconcileDB prompts for it. Username/password connection strings are also supported.
 
 ## Might implement later
 
