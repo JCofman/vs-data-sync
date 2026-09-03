@@ -1,5 +1,10 @@
 # ReconcileDB for VS Code
 
+## 1.0.2
+
+- Made Marketplace and Open VSX publishing safe to retry after partial failures.
+- Added Open VSX namespace verification and first-release namespace creation.
+
 ## 1.0.1
 
 - First independently published ReconcileDB release under `jcofman.reconciledb-vscode`.
