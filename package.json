@@ -4,7 +4,7 @@
     "description": "Compare and reconcile selected row data between PostgreSQL or SQL Server databases.",
     "icon": "assets/logo.png",
     "pricing": "Free",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "main": "./dist/extension.js",
     "preview": false,
     "qna": "marketplace",

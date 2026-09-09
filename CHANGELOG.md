@@ -1,5 +1,9 @@
 # ReconcileDB for VS Code
 
+## 1.0.4
+
+- Generate SQL Server boolean values as `bit` literals (`0` and `1`) so migration SQL works both inside ReconcileDB and when copied into SQL Server tools.
+
 ## 1.0.3
 
 - Corrected the extension publisher ID to the existing `JacobCofman` Marketplace account.
