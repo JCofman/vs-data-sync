@@ -1,5 +1,10 @@
 # ReconcileDB for VS Code
 
+## 1.0.5
+
+- Detect SQL Server identity columns and wrap generated inserts with one `SET IDENTITY_INSERT ... ON/OFF` block per table.
+- Keep excluded columns out of generated migration statements.
+
 ## 1.0.4
 
 - Generate SQL Server boolean values as `bit` literals (`0` and `1`) so migration SQL works both inside ReconcileDB and when copied into SQL Server tools.

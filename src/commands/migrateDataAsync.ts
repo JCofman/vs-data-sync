@@ -455,6 +455,7 @@ const executeMigrateMssql = async (options: {
             const isInsert = isInsertQuery(rawQuery);
             const isUpdate = isUpdateQuery(rawQuery);
             const isDelete = isDeleteQuery(rawQuery);
+            const isDataChange = isInsert || isUpdate || isDelete;
 
             const isBlankLine = rawQuery === '';
             const isCommentLine = rawQuery.startsWith('--');
@@ -508,10 +509,10 @@ const executeMigrateMssql = async (options: {
                 rowAffected.delete++;
             }
 
-            if ((rowCount ?? 0) <= 0) {
+            if (isDataChange && (rowCount ?? 0) <= 0) {
                 noAffectedQueries.push({ rawQuery, affected: rowCount ?? 0 });
             }
-            if ((rowCount ?? 0) >= 2) {
+            if (isDataChange && (rowCount ?? 0) >= 2) {
                 multiAffectedQueries.push({ rawQuery, affected: rowCount ?? 0 });
             }
 

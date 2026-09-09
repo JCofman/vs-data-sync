@@ -29,6 +29,7 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
             session.plan[table.name] = {
                 primaryKeys: [],
                 columns: [],
+                identityColumns: [],
                 insert: 0,
                 update: 0,
                 delete: 0
@@ -46,13 +47,13 @@ export const createSnapshotFiles = async (options: GenerateSnapshotOptions): Pro
             if (!tableColumns || tableColumns.length <= 0) {
                 tableColumns = await dbProvider.getColumnNames(table);
             }
-            session.plan[table.name].columns = tableColumns;
-
             // Remove column in exclude columns
             const excludeColumns = table.excludes || [];
             if (excludeColumns.length > 0) {
                 tableColumns = tableColumns.filter((columnName) => !excludeColumns.includes(columnName));
             }
+            session.plan[table.name].columns = tableColumns;
+            session.plan[table.name].identityColumns = await dbProvider.getIdentityColumns(table);
 
             // Generate select query
             const selectColumns =

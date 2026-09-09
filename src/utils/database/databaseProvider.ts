@@ -27,6 +27,7 @@ export interface DatabaseProvider {
     queryStream(sql: string): AsyncIterable<QueryResultRow>;
     getPrimaryKeys(table: TableConfig): Promise<string[]>;
     getColumnNames(table: TableConfig): Promise<string[]>;
+    getIdentityColumns(table: TableConfig): Promise<string[]>;
     escapeIdentifier(identifier: string): string;
     getDatabaseInfo(): string;
 }

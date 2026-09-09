@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import * as mssql from 'mssql';
 
 import { QueryResultRow } from '../../utils/types';
-import { streamMssqlRequest } from '../../utils/database/mssqlProvider';
+import { queryMssqlIdentityColumns, streamMssqlRequest } from '../../utils/database/mssqlProvider';
 
 class FakeStreamingRequest extends EventEmitter {
     stream = false;
@@ -46,6 +46,21 @@ class FakeStreamingRequest extends EventEmitter {
     }
 }
 
+class FakeMetadataRequest {
+    readonly inputs = new Map<string, unknown>();
+    queryText = '';
+
+    input(name: string, value: unknown): this {
+        this.inputs.set(name, value);
+        return this;
+    }
+
+    async query(sql: string): Promise<{ recordset: { columnName: string }[] }> {
+        this.queryText = sql;
+        return { recordset: [{ columnName: 'id' }] };
+    }
+}
+
 suite('SQL Server row streaming', () => {
     test('yields rows incrementally with pause and resume backpressure', async () => {
         const request = new FakeStreamingRequest([{ id: 1 }, { id: 2 }, { id: 3 }]);
@@ -60,5 +75,22 @@ suite('SQL Server row streaming', () => {
         assert.equal(request.pauseCount, 3);
         assert.equal(request.resumeCount, 3);
         assert.equal(request.cancelCount, 0);
+    });
+});
+
+suite('SQL Server identity metadata', () => {
+    test('finds identity columns in the selected schema with bound parameters', async () => {
+        const request = new FakeMetadataRequest();
+
+        const identityColumns = await queryMssqlIdentityColumns(
+            request as unknown as mssql.Request,
+            { schema: 'sales', name: 'orders' }
+        );
+
+        assert.deepEqual(identityColumns, ['id']);
+        assert.equal(request.inputs.get('tableName'), 'orders');
+        assert.equal(request.inputs.get('tableSchema'), 'sales');
+        assert.match(request.queryText, /FROM sys\.identity_columns/);
+        assert.match(request.queryText, /schema_info\.name = @tableSchema/);
     });
 });

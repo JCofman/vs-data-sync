@@ -7,6 +7,29 @@ import { validateIdentifier } from './validateIdentifier';
 import { connectMssql } from './mssqlConnection';
 import { formatDatabaseInfo } from './databaseInfo';
 
+export const queryMssqlIdentityColumns = async (request: mssql.Request, table: TableConfig): Promise<string[]> => {
+    const tableSchema = table.schema || 'dbo';
+    validateIdentifier(table.name);
+    validateIdentifier(tableSchema);
+
+    const sql = `
+    SELECT identity_column.name AS columnName
+    FROM sys.identity_columns AS identity_column
+    INNER JOIN sys.tables AS table_info
+        ON table_info.object_id = identity_column.object_id
+    INNER JOIN sys.schemas AS schema_info
+        ON schema_info.schema_id = table_info.schema_id
+    WHERE table_info.name = @tableName
+    AND schema_info.name = @tableSchema
+    ORDER BY identity_column.column_id`;
+
+    request.input('tableName', table.name);
+    request.input('tableSchema', tableSchema);
+
+    const result = await request.query(sql);
+    return result.recordset.map((row) => row.columnName);
+};
+
 export async function* streamMssqlRequest(
     request: mssql.Request,
     sql: string
@@ -190,6 +213,16 @@ export class MssqlProvider implements DatabaseProvider {
 
         const result = await request.query(sql);
         return result.recordset.map((row) => row.column_name);
+    }
+
+    async getIdentityColumns(table: TableConfig): Promise<string[]> {
+        if (!this.pool) {
+            throw new Error('Not connected');
+        }
+        const request = this.transaction
+            ? new mssql.Request(this.transaction)
+            : new mssql.Request(this.pool);
+        return await queryMssqlIdentityColumns(request, table);
     }
 
     escapeIdentifier(identifier: string): string {
