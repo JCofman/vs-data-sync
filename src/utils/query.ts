@@ -1,5 +1,25 @@
-import { escape } from './escape';
 import { TableConfig, TableDetail } from './utils';
+
+type DatabaseType = 'postgres' | 'mssql';
+
+const formatSqlLiteral = (value: any, dbType: DatabaseType): string => {
+    if (value === null || value === undefined) {
+        return 'NULL';
+    }
+    if (typeof value === 'boolean') {
+        return dbType === 'mssql' ? (value ? '1' : '0') : `${value}`;
+    }
+    if (typeof value === 'string') {
+        return `'${value.replace(/'/g, "''")}'`;
+    }
+    if (value instanceof Date) {
+        return dbType === 'postgres' ? `'${value.toISOString()}'::timestamp` : `'${value.toISOString()}'`;
+    }
+    if (typeof value === 'object') {
+        return dbType === 'postgres' ? `'${JSON.stringify(value)}'::jsonb` : `'${JSON.stringify(value)}'`;
+    }
+    return `${value}`;
+};
 
 export const isInsertQuery = (rawQuery: string | undefined): boolean => {
     if (!rawQuery) {
@@ -12,27 +32,12 @@ export const makeInsertQuery = (
     table: TableConfig,
     tableDetail: TableDetail,
     values: any,
-    dbType: 'postgres' | 'mssql' = 'postgres'
+    dbType: DatabaseType = 'postgres'
 ): string => {
     const columns = tableDetail.columns ?? [];
     const columnsStr = columns.map((c) => (dbType === 'postgres' ? `"${c}"` : `[${c}]`)).join(', ');
 
-    // Handle different value escaping for different databases
-    const valuesStr = columns
-        .map((c) => {
-            const value = values[c];
-            if (value === null || value === undefined) {
-                return 'NULL';
-            } else if (typeof value === 'string') {
-                return `'${value.replace(/'/g, "''")}'`;
-            } else if (typeof value === 'object' && value instanceof Date) {
-                return dbType === 'postgres' ? `'${value.toISOString()}'::timestamp` : `'${value.toISOString()}'`;
-            } else if (typeof value === 'object') {
-                return dbType === 'postgres' ? `'${JSON.stringify(value)}'::jsonb` : `'${JSON.stringify(value)}'`;
-            }
-            return value;
-        })
-        .join(', ');
+    const valuesStr = columns.map((c) => formatSqlLiteral(values[c], dbType)).join(', ');
 
     const tableIdentifier = table.schema
         ? dbType === 'postgres'
@@ -56,7 +61,7 @@ export const makeUpdateQuery = (
     table: TableConfig,
     tableDetail: TableDetail,
     values: any,
-    dbType: 'postgres' | 'mssql' = 'postgres'
+    dbType: DatabaseType = 'postgres'
 ): string => {
     const columns = tableDetail.columns;
     const primaryKeys = tableDetail.primaryKeys;
@@ -76,24 +81,7 @@ export const makeUpdateQuery = (
     const setClause = columns
         .filter((c) => !primaryKeys.includes(c))
         .map((c) => {
-            const value = values[c];
-            let valueStr = 'NULL';
-
-            if (value !== null && value !== undefined) {
-                if (typeof value === 'string') {
-                    valueStr = `'${value.replace(/'/g, "''")}'`;
-                } else if (typeof value === 'object' && value instanceof Date) {
-                    valueStr =
-                        dbType === 'postgres' ? `'${value.toISOString()}'::timestamp` : `'${value.toISOString()}'`;
-                } else if (typeof value === 'object') {
-                    valueStr =
-                        dbType === 'postgres' ? `'${JSON.stringify(value)}'::jsonb` : `'${JSON.stringify(value)}'`;
-                } else {
-                    valueStr = `${value}`;
-                }
-            }
-
-            return `${escapeIdentifier(c)} = ${valueStr}`;
+            return `${escapeIdentifier(c)} = ${formatSqlLiteral(values[c], dbType)}`;
         })
         .join(', ');
 
@@ -101,21 +89,10 @@ export const makeUpdateQuery = (
     const whereClause = primaryKeys
         .map((pk) => {
             const value = values[pk];
-            let valueStr = 'NULL';
-
             if (value === null || value === undefined) {
                 return `${escapeIdentifier(pk)} IS NULL`;
-            } else if (typeof value === 'string') {
-                valueStr = `'${value.replace(/'/g, "''")}'`;
-            } else if (typeof value === 'object' && value instanceof Date) {
-                valueStr = dbType === 'postgres' ? `'${value.toISOString()}'::timestamp` : `'${value.toISOString()}'`;
-            } else if (typeof value === 'object') {
-                valueStr = dbType === 'postgres' ? `'${JSON.stringify(value)}'::jsonb` : `'${JSON.stringify(value)}'`;
-            } else {
-                valueStr = `${value}`;
             }
-
-            return `${escapeIdentifier(pk)} = ${valueStr}`;
+            return `${escapeIdentifier(pk)} = ${formatSqlLiteral(value, dbType)}`;
         })
         .join(' AND ');
 
@@ -138,7 +115,7 @@ export const makeDeleteQuery = (
     table: TableConfig,
     tableDetail: TableDetail,
     values: any,
-    dbType: 'postgres' | 'mssql' = 'postgres'
+    dbType: DatabaseType = 'postgres'
 ): string => {
     const primaryKeys = tableDetail.primaryKeys;
 
@@ -156,19 +133,8 @@ export const makeDeleteQuery = (
 
             if (value === null || value === undefined) {
                 return `${escapeIdentifier(pk)} IS NULL`;
-            } else if (typeof value === 'string') {
-                return `${escapeIdentifier(pk)} = '${value.replace(/'/g, "''")}'`;
-            } else if (typeof value === 'object' && value instanceof Date) {
-                return dbType === 'postgres'
-                    ? `${escapeIdentifier(pk)} = '${value.toISOString()}'::timestamp`
-                    : `${escapeIdentifier(pk)} = '${value.toISOString()}'`;
-            } else if (typeof value === 'object') {
-                return dbType === 'postgres'
-                    ? `${escapeIdentifier(pk)} = '${JSON.stringify(value)}'::jsonb`
-                    : `${escapeIdentifier(pk)} = '${JSON.stringify(value)}'`;
-            } else {
-                return `${escapeIdentifier(pk)} = ${value}`;
             }
+            return `${escapeIdentifier(pk)} = ${formatSqlLiteral(value, dbType)}`;
         })
         .join(' AND ');
 
