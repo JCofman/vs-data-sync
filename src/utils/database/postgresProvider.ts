@@ -101,6 +101,10 @@ export class PostgresProvider implements DatabaseProvider {
         return result.rows.map((row) => row.column_name);
     }
 
+    async getIdentityColumns(_table: TableConfig): Promise<string[]> {
+        return [];
+    }
+
     escapeIdentifier(identifier: string): string {
         return `"${identifier}"`;
     }

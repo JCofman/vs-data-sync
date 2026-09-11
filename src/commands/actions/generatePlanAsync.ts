@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import groupBy from 'lodash.groupby';
 import { EOL } from 'node:os';
 import { FileManager } from '../../utils/fileManager';
+import { wrapIdentityInsertPlan } from '../../utils/identityInsert';
 import { logger } from '../../utils/logger';
 import { makeDeleteQuery, makeInsertQuery, makeUpdateQuery } from '../../utils/query';
 import { PatternSession, TableConfig, getTabWidth, getTablePrimaryKey } from '../../utils/utils';
@@ -46,6 +47,7 @@ export const generatePlanAsync = async (options: {
     for (let i = 0; i < tables.length; i++) {
         const table = tables[i];
         allPlanLines.push(`${EOL}-- ${table.name}`);
+        const tableAllStatementsStart = allPlanLines.length;
 
         // Init count
         session.plan[table.name] = {
@@ -68,6 +70,8 @@ export const generatePlanAsync = async (options: {
             updatePlanLines.push(EOL);
             deletePlanLines.push(EOL);
         }
+        const tableInsertStatementsStart = insertPlanLines.length;
+        const planDetail = session.plan[table.name];
 
         for (let j = 0; j < diffPatchContent.hunks.length; j++) {
             const hunk = diffPatchContent.hunks[j];
@@ -75,9 +79,6 @@ export const generatePlanAsync = async (options: {
             if (!isLineChanges) {
                 continue;
             }
-
-            // Get plan detail for table
-            const planDetail = session.plan[table.name];
 
             // if lines [length == 1] => insert/remove
             if (hunk.lines.length === 1) {
@@ -182,6 +183,16 @@ export const generatePlanAsync = async (options: {
                 });
             }
         }
+
+        const identityInsertPlan = wrapIdentityInsertPlan({
+            table,
+            tableDetail: planDetail,
+            dbType,
+            allStatements: allPlanLines.splice(tableAllStatementsStart),
+            insertStatements: insertPlanLines.splice(tableInsertStatementsStart)
+        });
+        allPlanLines.push(...identityInsertPlan.allStatements);
+        insertPlanLines.push(...identityInsertPlan.insertStatements);
     }
 
     // Output count changes to file

@@ -11,6 +11,7 @@ import { formatDatabaseInfo } from './database/databaseInfo';
 export type TableDetail = {
     primaryKeys: string[];
     columns: string[];
+    identityColumns?: string[];
     insert: number;
     update: number;
     delete: number;
