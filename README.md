@@ -16,12 +16,14 @@ Compare selected row data between two databases with the same schema, inspect th
 
 - Compares row data from PostgreSQL to PostgreSQL or SQL Server to SQL Server.
 - Lets you select tables and columns, exclude volatile columns, filter rows, and define stable ordering or primary keys.
-- Shows source and target snapshots alongside a generated migration plan before anything is applied.
+- Opens a row-first comparison review with operation filters, primary-key search, changed-column summaries, and field-level source/target values.
+- Loads large field values only when their row is selected and keeps the original JSONL diff available as a fallback.
+- Shows the generated migration plan before anything is applied.
 - Generates inserts, updates, and deletes that can be individually disabled.
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.0.5` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.1.0` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 
@@ -35,7 +37,7 @@ The universal desktop package supports PostgreSQL and SQL Server username/passwo
 2. Choose **Generate Configuration File**.
 3. Configure a source and target of the same database engine.
 4. Select the tables, keys, and columns to compare.
-5. Run **Analyze Data**, review the diff and migration SQL, then explicitly choose whether to execute it.
+5. Run **Analyze Data**, select a table under **Compare** to review changed rows and fields, inspect the migration SQL, then explicitly choose whether to execute it.
 
 The existing `data-sync.*` command IDs, settings, and `database.json` format remain compatible with the original extension so existing local configurations can be reused.
 

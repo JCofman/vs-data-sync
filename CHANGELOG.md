@@ -1,5 +1,13 @@
 # ReconcileDB for VS Code
 
+## 1.1.0
+
+- Add a database-aware, row-first comparison review panel for each analyzed table.
+- Filter changes by insert, update, or delete and search by primary key or changed column.
+- Load full field values only for the selected row, with exact source/target values and inline text highlighting for manageable values.
+- Keep the existing JSONL inline and side-by-side diff commands as fallback views.
+- Use collision-safe composite row identities and exact typed field comparisons in the review model.
+
 ## 1.0.5
 
 - Detect SQL Server identity columns and wrap generated inserts with one `SET IDENTITY_INSERT ... ON/OFF` block per table.

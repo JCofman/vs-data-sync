@@ -3,6 +3,7 @@
 .github
 .vscode
 Microsofts-Compare-tool/**
+docs/wayfinder/**
 CONTEXT.md
 artifacts/**
 dist/__test__

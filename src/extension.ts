@@ -5,6 +5,7 @@ import { analyzeDataOnImportAsync } from './commands/analyzeDataOnImportAsync';
 import { generateConfigAsync } from './commands/generateConfigAsync';
 import { migrateDataAsync } from './commands/migrateDataAsync';
 import { showConfigAsync } from './commands/showConfigAsync';
+import { ComparisonReviewPanel } from './compare/comparisonReviewPanel';
 import { CompareProvider, CompareTreeItem } from './explorer/compare-provider';
 import { InfoProvider, InfoTreeItem } from './explorer/info-provider';
 import { MigrateProvider, MigrateTreeItem } from './explorer/migrate-provider';
@@ -86,6 +87,13 @@ export async function activate(context: ExtensionContext) {
             if (fileManager.isInit() && tableName) {
                 const modifiedFilePath = fileManager.getModifiedFilePath(tableName);
                 showTextDocument(modifiedFilePath);
+            }
+        }),
+        commands.registerCommand(extCommands.reviewComparison, async (treeItem: CompareTreeItem) => {
+            logger.info(`Review row changes for '${treeItem.tableName}'`);
+            const tableName = treeItem.tableName || '';
+            if (tableName) {
+                await ComparisonReviewPanel.open(tableName);
             }
         }),
         commands.registerCommand(extCommands.inlineDiff, (treeItem: CompareTreeItem) => {

@@ -87,8 +87,8 @@ export class CompareProvider implements TreeDataProvider<CompareTreeItem> {
                 tableName: table.name
             };
             treeItem.command = {
-                title: `Compare the table '${treeItem.tableName}'`,
-                command: extCommands.sideBySideDiff,
+                title: `Review changes for '${treeItem.tableName}'`,
+                command: extCommands.reviewComparison,
                 arguments: [treeItem]
             };
             treeItems.push(treeItem);

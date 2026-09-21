@@ -18,6 +18,7 @@ export const extCommands = {
     // Compare activity
     openOriginalFile: `${APP_ID}.open-original-file`,
     openModifiedFile: `${APP_ID}.open-modified-file`,
+    reviewComparison: `${APP_ID}.review-comparison`,
     inlineDiff: `${APP_ID}.inline-diff`,
     sideBySideDiff: `${APP_ID}.side-by-side-diff`,
 
