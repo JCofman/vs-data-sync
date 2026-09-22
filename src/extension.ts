@@ -93,7 +93,7 @@ export async function activate(context: ExtensionContext) {
             logger.info(`Review row changes for '${treeItem.tableName}'`);
             const tableName = treeItem.tableName || '';
             if (tableName) {
-                await ComparisonReviewPanel.open(tableName);
+                await ComparisonReviewPanel.open(tableName, context.extensionUri);
             }
         }),
         commands.registerCommand(extCommands.inlineDiff, (treeItem: CompareTreeItem) => {

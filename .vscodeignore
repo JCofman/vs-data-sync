@@ -19,6 +19,8 @@ package-lock.json
 *.vsix
 dist/**
 !dist/extension.js
+!dist/compare-review/
+!dist/compare-review/**
 dist/**/*.map
 tsconfig.json
 webpack.config.json

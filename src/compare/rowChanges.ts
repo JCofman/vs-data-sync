@@ -1,4 +1,4 @@
-import { Change, ParsedDiff, diffLines, diffWordsWithSpace } from 'diff';
+import { ParsedDiff } from 'diff';
 
 import { TableDetail } from '../utils/utils';
 
@@ -25,11 +25,6 @@ export type ValuePreview = {
     type: string;
     size: number;
     truncated: boolean;
-};
-
-export type TextDiffSegment = {
-    kind: 'same' | 'insert' | 'delete';
-    value: string;
 };
 
 type RowPair = {
@@ -103,28 +98,6 @@ export const displayValue = (value: unknown): string => {
         return JSON.stringify(value, null, 2);
     }
     return String(value);
-};
-
-const toTextDiffSegment = (change: Change): TextDiffSegment => ({
-    kind: change.added ? 'insert' : change.removed ? 'delete' : 'same',
-    value: change.value
-});
-
-export const createTextDiff = (targetValue: unknown, sourceValue: unknown): TextDiffSegment[] | undefined => {
-    if (typeof targetValue !== 'string' || typeof sourceValue !== 'string') {
-        return undefined;
-    }
-
-    const combinedLength = targetValue.length + sourceValue.length;
-    const isMultiline = targetValue.includes('\n') || sourceValue.includes('\n');
-    if ((!isMultiline && combinedLength > 20_000) || combinedLength > 2_000_000) {
-        return undefined;
-    }
-
-    const changes = isMultiline
-        ? diffLines(targetValue, sourceValue, { newlineIsToken: true })
-        : diffWordsWithSpace(targetValue, sourceValue);
-    return changes.map(toTextDiffSegment);
 };
 
 const valueType = (value: unknown): string => {

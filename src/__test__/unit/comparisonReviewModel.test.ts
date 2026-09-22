@@ -64,12 +64,10 @@ suite('Comparison review model', () => {
         assert.equal('source' in page.rows[0], false);
     });
 
-    test('returns exact values and an inline text diff only for selected rows', () => {
+    test('returns exact values only for selected rows', () => {
         const detail = new ComparisonReviewModel(changes).getDetail('[1]');
         assert.equal(detail?.fields[0].target.value, 'old title');
         assert.equal(detail?.fields[0].source.value, 'new title');
-        assert.ok(detail?.fields[0].textDiff?.some((segment) => segment.kind === 'delete'));
-        assert.ok(detail?.fields[0].textDiff?.some((segment) => segment.kind === 'insert'));
     });
 
     test('caps page size to bound webview messages', () => {

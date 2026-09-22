@@ -17,7 +17,7 @@ Compare selected row data between two databases with the same schema, inspect th
 - Compares row data from PostgreSQL to PostgreSQL or SQL Server to SQL Server.
 - Lets you select tables and columns, exclude volatile columns, filter rows, and define stable ordering or primary keys.
 - Opens a row-first comparison review with operation filters, primary-key search, changed-column summaries, and field-level source/target values.
-- Loads large field values only when their row is selected and keeps the original JSONL diff available as a fallback.
+- Loads large field values only when their row is selected, renders them with [Pierre Diffs](https://github.com/pierrecomputer/pierre), and keeps the original JSONL diff available as a fallback.
 - Shows the generated migration plan before anything is applied.
 - Generates inserts, updates, and deletes that can be individually disabled.
 - Applies migrations in a transaction and reports suspicious row counts.
@@ -120,3 +120,5 @@ Please report bugs and feature requests in the [JCofman/vs-data-sync issue track
 ## License
 
 ReconcileDB for VS Code is distributed under the [MIT License](LICENSE).
+
+Field-level diff rendering uses [`@pierre/diffs`](https://github.com/pierrecomputer/pierre), distributed under the Apache License 2.0. Its license is included in packaged extensions.

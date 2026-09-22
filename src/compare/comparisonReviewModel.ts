@@ -1,9 +1,7 @@
 import {
     RowChange,
     RowChangeKind,
-    TextDiffSegment,
     ValuePreview,
-    createTextDiff,
     createValuePreview,
     displayValue
 } from './rowChanges';
@@ -21,7 +19,6 @@ export type FieldChangeDetail = {
     column: string;
     source: ValuePreview & { value: string };
     target: ValuePreview & { value: string };
-    textDiff?: TextDiffSegment[];
 };
 
 export type RowChangeDetail = RowChangeSummary & {
@@ -108,8 +105,7 @@ export class ComparisonReviewModel {
             fields: change.fields.map((field) => ({
                 column: field.column,
                 source: toDetailedValue(field.sourceValue),
-                target: toDetailedValue(field.targetValue),
-                textDiff: createTextDiff(field.targetValue, field.sourceValue)
+                target: toDetailedValue(field.targetValue)
             }))
         };
     }
