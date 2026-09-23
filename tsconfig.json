@@ -3,7 +3,7 @@
         "module": "commonjs",
         "target": "ES2022",
         "outDir": "dist",
-        "lib": ["es2022", "WebWorker"],
+        "lib": ["es2022", "DOM", "WebWorker"],
         "sourceMap": true,
         "rootDir": "src",
         "strict": true,
