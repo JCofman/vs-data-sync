@@ -5,6 +5,7 @@
 - Add a database-aware, row-first comparison review panel for each analyzed table.
 - Filter changes by insert, update, or delete and search by primary key or changed column.
 - Load full field values only for the selected row and render them with `@pierre/diffs`, including side-by-side and unified layouts.
+- Add per-field Pretty JSON, Pretty HTML, and isolated rendered HTML views for large structured text columns.
 - Keep the existing JSONL inline and side-by-side diff commands as fallback views.
 - Use collision-safe composite row identities and exact typed field comparisons in the review model.
 

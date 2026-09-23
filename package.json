@@ -384,12 +384,14 @@
         "chance": "^1.1.11",
         "dayjs": "^1.11.9",
         "diff": "^5.1.0",
+        "dompurify": "^3.4.16",
         "fs-extra": "^11.1.1",
         "lodash.groupby": "^4.6.0",
         "mssql": "^12.0.0",
         "pg": "^8.11.1",
         "pg-iterator": "^0.3.0",
-        "pg-promise": "^11.5.0"
+        "pg-promise": "^11.5.0",
+        "prettier": "^3.9.9"
     },
     "author": {
         "name": "Nguyen Ngoc Long and ReconcileDB contributors",

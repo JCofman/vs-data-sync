@@ -38,13 +38,14 @@ export const createComparisonReviewHtml = (webview: Webview, extensionUri: Uri, 
     const nonce = getNonce();
     const scriptUri = webview.asWebviewUri(Uri.joinPath(extensionUri, 'dist', 'compare-review', 'index.js'));
     const pierreUri = webview.asWebviewUri(Uri.joinPath(extensionUri, 'dist', 'compare-review', 'pierre.js'));
+    const formatWorkerUri = webview.asWebviewUri(Uri.joinPath(extensionUri, 'dist', 'compare-review', 'format-worker.js'));
 
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource};">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}; connect-src ${webview.cspSource}; worker-src blob:;">
     <title>Compare ${escapeHtml(tableName)}</title>
     <style nonce="${nonce}">
         :root { color-scheme: light dark; }
@@ -92,9 +93,18 @@ export const createComparisonReviewHtml = (webview: Webview, extensionUri: Uri, 
         .field { margin: 0 0 14px; border: 1px solid var(--vscode-panel-border); border-radius: 5px; overflow: hidden; }
         .field-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; background: var(--vscode-sideBar-background); border-bottom: 1px solid var(--vscode-panel-border); }
         .field-name { font-family: var(--vscode-editor-font-family); font-weight: 600; }
+        .field-heading { display: flex; flex-direction: column; min-width: 0; }
+        .field-controls { display: flex; align-items: center; gap: 8px; }
+        .field-controls select { max-width: 155px; color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); border: 1px solid var(--vscode-dropdown-border); padding: 3px 6px; }
         .types { color: var(--vscode-descriptionForeground); font-size: 11px; }
+        .presentation-note { padding: 5px 10px; border-bottom: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); font-size: 11px; }
+        .presentation-note:empty { display: none; }
         .pierre-diff { min-height: 42px; background: var(--vscode-textCodeBlock-background); }
         .pierre-error { margin: 0; padding: 10px; color: var(--vscode-errorForeground); white-space: pre-wrap; }
+        .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .preview-side + .preview-side { border-left: 1px solid var(--vscode-panel-border); }
+        .preview-frame { display: block; width: 100%; height: 300px; border: 0; background: white; pointer-events: none; }
+        .preview-hint { padding: 7px 10px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .value-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
         .value-side + .value-side { border-left: 1px solid var(--vscode-panel-border); }
         .value-label { display: flex; justify-content: space-between; padding: 5px 9px; color: var(--vscode-descriptionForeground); background: var(--vscode-editorWidget-background); font-size: 11px; }
@@ -106,7 +116,7 @@ export const createComparisonReviewHtml = (webview: Webview, extensionUri: Uri, 
         @media (max-width: 900px) { .workspace { grid-template-columns: minmax(250px, 44%) minmax(330px, 1fr); } .stats { display: none; } }
     </style>
 </head>
-<body data-pierre-src="${pierreUri}">
+<body data-pierre-src="${pierreUri}" data-format-worker-src="${formatWorkerUri}">
     <main class="shell">
         <header class="header">
             <div><div class="eyebrow">Make target match source</div><h1>${escapeHtml(tableName)}</h1></div>

@@ -1,6 +1,8 @@
 import type { FileContents } from '@pierre/diffs';
+import DOMPurify from 'dompurify';
 
 import { RowChangeDetail, ReviewPage, ReviewStats } from './comparisonReviewModel';
+import { FieldView, suggestedFieldView } from './fieldPresentation';
 
 declare function acquireVsCodeApi(): {
     postMessage(message: unknown): void;
@@ -41,10 +43,71 @@ const previousButton = requireElement<HTMLButtonElement>('previous');
 const nextButton = requireElement<HTMLButtonElement>('next');
 type DiffInstance = { cleanUp(): void };
 type PierreModule = { fileDiff: typeof import('@pierre/diffs')['FileDiff'] };
+type FormatResponse = { id: number; target: string | null; source: string | null } | { id: number; error: string };
+type FormattedPair = { target: string | null; source: string | null };
 
-const diffInstances: DiffInstance[] = [];
+const diffInstances = new Map<HTMLElement, DiffInstance>();
+const fieldViews = new Map<string, FieldView>();
+const fieldRenderVersions = new WeakMap<HTMLElement, number>();
+const pendingFormats = new Map<number, { resolve(value: FormattedPair): void; reject(reason: Error): void }>();
 let detailGeneration = 0;
+let nextFormatId = 0;
 let pierreModule: Promise<PierreModule> | undefined;
+let formatWorkerPromise: Promise<Worker> | undefined;
+let formatWorkerUrl: string | undefined;
+
+const loadFormatWorker = (): Promise<Worker> => {
+    formatWorkerPromise ??= (async () => {
+        const source = document.body.dataset.formatWorkerSrc;
+        if (!source) {
+            throw new Error('The formatter resource is unavailable.');
+        }
+        const response = await fetch(source);
+        if (!response.ok) {
+            throw new Error('The formatter could not be loaded.');
+        }
+        formatWorkerUrl = URL.createObjectURL(await response.blob());
+        const worker = new Worker(formatWorkerUrl);
+        worker.addEventListener('message', ({ data }: MessageEvent<FormatResponse>) => {
+            const pending = pendingFormats.get(data.id);
+            if (!pending) {
+                return;
+            }
+            pendingFormats.delete(data.id);
+            if ('error' in data) {
+                pending.reject(new Error(data.error));
+            } else {
+                pending.resolve({ target: data.target, source: data.source });
+            }
+        });
+        worker.addEventListener('error', () => {
+            for (const pending of pendingFormats.values()) {
+                pending.reject(new Error('The formatter stopped unexpectedly.'));
+            }
+            pendingFormats.clear();
+            formatWorkerPromise = undefined;
+        });
+        return worker;
+    })().catch((error) => {
+        formatWorkerPromise = undefined;
+        throw error;
+    });
+    return formatWorkerPromise;
+};
+
+const formatPair = async (field: RowChangeDetail['fields'][number], format: 'json' | 'html'): Promise<FormattedPair> => {
+    const worker = await loadFormatWorker();
+    const id = ++nextFormatId;
+    return new Promise((resolve, reject) => {
+        pendingFormats.set(id, { resolve, reject });
+        worker.postMessage({
+            id,
+            format,
+            target: field.target.type === 'undefined' ? null : field.target.type === 'null' ? 'null' : field.target.value,
+            source: field.source.type === 'undefined' ? null : field.source.type === 'null' ? 'null' : field.source.value
+        });
+    });
+};
 
 const loadPierre = (): Promise<PierreModule> => {
     const pierreWindow = window as typeof window & { reconcileDbPierre?: PierreModule };
@@ -121,6 +184,7 @@ const renderStats = (stats: ReviewStats): void => {
 
 const selectRow = (id: string): void => {
     state.selectedId = id;
+    fieldViews.clear();
     rowsElement.querySelectorAll<HTMLElement>('.row').forEach((row) => {
         row.classList.toggle('selected', row.dataset.id === id);
     });
@@ -165,33 +229,40 @@ const renderSide = (label: string, value: RowChangeDetail['fields'][number]['sou
 
 const toFile = (
     column: string,
-    side: 'target' | 'source',
-    value: RowChangeDetail['fields'][number]['source']
+    value: RowChangeDetail['fields'][number]['source'],
+    formattedValue?: string | null
 ): FileContents | null => {
     if (value.type === 'undefined') {
         return null;
     }
     return {
         name: `${column}.txt`,
-        contents: value.value,
-        lang: 'text',
-        cacheKey: `${state.selectedId ?? 'row'}:${column}:${side}:${value.size}:${value.value.length}`
+        contents: formattedValue ?? value.value,
+        lang: 'text'
     };
 };
 
 const cleanUpDiffs = (): void => {
-    for (const instance of diffInstances.splice(0)) {
+    for (const instance of diffInstances.values()) {
         instance.cleanUp();
     }
+    diffInstances.clear();
+};
+
+const cleanUpFieldDiff = (container: HTMLElement): void => {
+    diffInstances.get(container)?.cleanUp();
+    diffInstances.delete(container);
 };
 
 const renderPierreDiff = async (
     field: RowChangeDetail['fields'][number],
     container: HTMLElement,
-    generation: number
+    generation: number,
+    renderVersion: number,
+    formatted?: FormattedPair
 ): Promise<void> => {
-    const oldFile = toFile(field.column, 'target', field.target);
-    const newFile = toFile(field.column, 'source', field.source);
+    const oldFile = toFile(field.column, field.target, formatted?.target);
+    const newFile = toFile(field.column, field.source, formatted?.source);
     if (!oldFile && !newFile) {
         container.append(element('p', 'empty', 'No value is present on either side.'));
         return;
@@ -200,7 +271,7 @@ const renderPierreDiff = async (
     container.append(element('div', 'loading', 'Rendering field diff…'));
     try {
         const pierre = await loadPierre();
-        if (generation !== detailGeneration || !container.isConnected) {
+        if (generation !== detailGeneration || fieldRenderVersions.get(container) !== renderVersion || !container.isConnected) {
             return;
         }
         container.replaceChildren();
@@ -227,14 +298,97 @@ const renderPierreDiff = async (
         } else if (newFile) {
             instance.render({ oldFile: null, newFile, containerWrapper: container });
         }
-        diffInstances.push(instance);
+        diffInstances.set(container, instance);
     } catch (error) {
-        if (generation !== detailGeneration || !container.isConnected) {
+        if (generation !== detailGeneration || fieldRenderVersions.get(container) !== renderVersion || !container.isConnected) {
             return;
         }
         container.replaceChildren();
         const message = error instanceof Error ? error.message : String(error);
         container.append(element('pre', 'pierre-error', `Unable to render this field: ${message}`));
+    }
+};
+
+const previewDocument = (value: string): string => {
+    // DOMPurify's public configuration keys use uppercase names.
+    /* eslint-disable @typescript-eslint/naming-convention */
+    const safeHtml = DOMPurify.sanitize(value, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ['script', 'style', 'meta', 'base', 'link', 'form', 'iframe', 'object', 'embed', 'img', 'picture', 'source', 'audio', 'video'],
+        FORBID_ATTR: ['href', 'src', 'srcset', 'action', 'formaction', 'poster', 'autofocus']
+    });
+    /* eslint-enable @typescript-eslint/naming-convention */
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none';"></head><body>${safeHtml}</body></html>`;
+};
+
+const renderHtmlPreview = (field: RowChangeDetail['fields'][number], container: HTMLElement): void => {
+    const previews = element('div', 'preview-grid');
+    for (const [label, value] of [['Target · before', field.target], ['Source · after', field.source]] as const) {
+        const side = element('div', 'preview-side');
+        side.append(element('div', 'value-label', label));
+        if (value.type === 'undefined') {
+            side.append(element('p', 'empty', 'Not present'));
+        } else {
+            const frame = element('iframe', 'preview-frame');
+            frame.setAttribute('sandbox', '');
+            frame.setAttribute('referrerpolicy', 'no-referrer');
+            frame.title = `${field.column}: ${label}`;
+            frame.srcdoc = previewDocument(value.value);
+            side.append(frame);
+        }
+        previews.append(side);
+    }
+    container.replaceChildren(
+        element('div', 'preview-hint', 'Visual preview only · scripts, navigation, forms, images, and external styles are omitted.'),
+        previews
+    );
+};
+
+const renderFieldView = async (
+    field: RowChangeDetail['fields'][number],
+    container: HTMLElement,
+    note: HTMLElement,
+    generation: number
+): Promise<void> => {
+    const renderVersion = (fieldRenderVersions.get(container) ?? 0) + 1;
+    fieldRenderVersions.set(container, renderVersion);
+    cleanUpFieldDiff(container);
+    container.replaceChildren();
+    const view = fieldViews.get(field.column) ?? 'raw';
+    note.textContent = view === 'raw' ? '' : 'Display only · comparison and migration still use the exact stored values.';
+
+    if (view === 'preview') {
+        if (Math.max(field.source.size, field.target.size) > 2_000_000) {
+            container.append(element('p', 'pierre-error', 'This HTML value is too large for the visual preview. Use Raw or Pretty HTML.'));
+        } else {
+            renderHtmlPreview(field, container);
+        }
+        return;
+    }
+    if (view === 'raw') {
+        await renderPierreDiff(field, container, generation, renderVersion);
+        return;
+    }
+    if (Math.max(field.source.size, field.target.size) > 2_000_000) {
+        note.textContent = 'This value is too large to format here. Showing the exact text.';
+        await renderPierreDiff(field, container, generation, renderVersion);
+        return;
+    }
+    container.append(element('div', 'loading', `Formatting ${view.toUpperCase()}…`));
+    try {
+        const formatted = await formatPair(field, view);
+        if (generation !== detailGeneration || fieldRenderVersions.get(container) !== renderVersion || !container.isConnected) {
+            return;
+        }
+        container.replaceChildren();
+        await renderPierreDiff(field, container, generation, renderVersion, formatted);
+    } catch (error) {
+        if (generation !== detailGeneration || fieldRenderVersions.get(container) !== renderVersion || !container.isConnected) {
+            return;
+        }
+        note.textContent = `Could not format this field: ${error instanceof Error ? error.message : String(error)}. Showing the exact text.`;
+        container.replaceChildren();
+        await renderPierreDiff(field, container, generation, renderVersion);
     }
 };
 
@@ -276,13 +430,44 @@ const renderDetail = (detail?: RowChangeDetail): void => {
     for (const field of detail.fields) {
         const card = element('section', 'field');
         const fieldHead = element('div', 'field-head');
-        fieldHead.append(
-            element('span', 'field-name', field.column),
-            element('span', 'types', `Target ${field.target.type} → Source ${field.source.type}`)
+        const fieldHeading = element('div', 'field-heading');
+        fieldHeading.append(element('span', 'field-name', field.column));
+        fieldHeading.append(element('span', 'types', `Target ${field.target.type} → Source ${field.source.type}`));
+        fieldHead.append(fieldHeading);
+
+        const controls = element('div', 'field-controls');
+        const availableViews: Array<[FieldView, string]> = [['raw', 'Raw text']];
+        const canInterpret = [field.target.type, field.source.type].some((type) =>
+            ['string', 'array', 'object'].includes(type)
         );
+        const suggested = suggestedFieldView([field.target, field.source]);
+        if (canInterpret) {
+            availableViews.push(
+                ['json', suggested === 'json' ? 'Pretty JSON · suggested' : 'Pretty JSON'],
+                ['html', suggested === 'html' ? 'Pretty HTML · suggested' : 'Pretty HTML'],
+                ['preview', 'Rendered HTML']
+            );
+        }
+        if (availableViews.length > 1) {
+            const viewSelect = element('select');
+            viewSelect.setAttribute('aria-label', `View ${field.column} as`);
+            for (const [view, label] of availableViews) {
+                const option = element('option', undefined, label);
+                option.value = view;
+                option.selected = (fieldViews.get(field.column) ?? 'raw') === view;
+                viewSelect.append(option);
+            }
+            controls.append(viewSelect);
+            viewSelect.addEventListener('change', () => {
+                fieldViews.set(field.column, viewSelect.value as FieldView);
+                void renderFieldView(field, diff, note, generation);
+            });
+        }
+        fieldHead.append(controls);
         const diff = element('div', 'pierre-diff');
-        card.append(fieldHead, diff);
-        void renderPierreDiff(field, diff, generation);
+        const note = element('div', 'presentation-note');
+        card.append(fieldHead, note, diff);
+        void renderFieldView(field, diff, note, generation);
 
         const disclosure = element('details');
         disclosure.append(element('summary', undefined, 'Exact source and target values'));
@@ -344,5 +529,11 @@ rowsElement.addEventListener('keydown', (event) => {
         next.focus();
     }
 });
-window.addEventListener('unload', cleanUpDiffs);
+window.addEventListener('unload', () => {
+    cleanUpDiffs();
+    void formatWorkerPromise?.then((worker) => worker.terminate());
+    if (formatWorkerUrl) {
+        URL.revokeObjectURL(formatWorkerUrl);
+    }
+});
 vscode.postMessage({ type: 'ready' });
