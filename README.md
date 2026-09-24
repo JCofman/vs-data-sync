@@ -12,6 +12,29 @@ Compare selected row data between two databases with the same schema, inspect th
 [![Open VSX](https://img.shields.io/open-vsx/v/JacobCofman/reconciledb-vscode)](https://open-vsx.org/extension/JacobCofman/reconciledb-vscode)
 [![MIT license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 
+## New in 1.1.0: review changes row by row
+
+The comparison view puts the decision-making details together before you run a migration:
+
+1. Select a table under **Compare** to see insert, update, and delete counts. Filter by operation or search for a row by its key or changed column.
+2. Select a row to see only its changed fields, with target (**before**) and source (**after**) values side by side. Switch to a unified diff when that is easier to read.
+3. For a long text field, switch its view from **Raw text** to **Pretty JSON**, **Pretty HTML**, or **Rendered HTML**. JSON and HTML suggestions help you find a useful view, but the choice stays yours.
+4. Expand **Exact source and target values** whenever you need to inspect the original data, then review the generated migration SQL before applying anything.
+
+These screenshots show the actual comparison view with fictional sample data:
+
+**Pretty JSON:** line-level changes in a structured text column, alongside the row list and change filters.
+
+![Pretty JSON diff for a customer row](docs/images/compare-pretty-json.png)
+
+**Rendered HTML:** isolated before-and-after previews of an HTML text column.
+
+![Rendered HTML previews for a customer row](docs/images/compare-rendered-html.png)
+
+Field diffs use [Pierre Diffs](https://github.com/pierrecomputer/pierre). The row list stays compact, and full field values are loaded only for the row you select. Formatting runs on demand, so large JSON or HTML columns do not need to be prettified just to browse the results.
+
+The rendered HTML view is an isolated visual preview: it omits scripts, navigation, forms, images, and external styles. Views are **display-only**—comparison and migration always use the exact stored values. Values over 2 MB remain available in Raw text instead of being formatted or previewed.
+
 ## What it does
 
 - Compares row data from PostgreSQL to PostgreSQL or SQL Server to SQL Server.
@@ -24,7 +47,7 @@ Compare selected row data between two databases with the same schema, inspect th
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.1.0` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.1.x` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 
