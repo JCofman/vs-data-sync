@@ -47,7 +47,7 @@ The rendered HTML view is an isolated visual preview: it omits scripts, navigati
 - Applies migrations in a transaction and reports suspicious row counts.
 - Uses exact value comparison. ReconcileDB does not silently normalize text, timestamps, or numbers.
 
-ReconcileDB `1.1.0` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
+ReconcileDB `1.1.x` does not compare or migrate database schemas, perform cross-engine synchronization, or run as a VS Code web extension.
 
 ## Installation
 

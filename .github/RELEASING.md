@@ -21,4 +21,4 @@ Use environment protection rules to require approval before the publish job star
 
 Do not reuse or move a release tag. Increment the package version and create a new tag for a corrected release.
 
-The workflow reads the publisher ID from `package.json`, verifies Marketplace access, and verifies the matching Open VSX namespace before publishing. On the first Open VSX release, it creates the namespace with the configured token. Both registry commands skip an already-published version, so rerunning a partially completed release is safe.
+The workflow reads the publisher ID from `package.json`, verifies Marketplace access, and verifies the matching Open VSX namespace before publishing. On the first Open VSX release, it creates the namespace with the configured token. Both registry commands skip an already-published version. If the GitHub release already exists, the workflow uploads a missing VSIX asset and leaves any existing asset untouched, so rerunning a partially completed release is safe.

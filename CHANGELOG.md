@@ -1,5 +1,10 @@
 # ReconcileDB for VS Code
 
+## 1.1.1
+
+- Add screenshot examples and a step-by-step guide for the row-first comparison review.
+- Allow the release workflow to attach a missing VSIX to an existing GitHub release when a publish job is retried.
+
 ## 1.1.0
 
 - Add a database-aware, row-first comparison review panel for each analyzed table.

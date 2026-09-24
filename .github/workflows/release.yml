@@ -75,9 +75,18 @@ jobs:
         run: npm exec -- ovsx publish --skip-duplicate artifacts/*-universal.vsix -p "$OPEN_VSX_TOKEN"
         env:
           OPEN_VSX_TOKEN: ${{ secrets.OPEN_VSX_TOKEN }}
-      - name: Create GitHub release
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          gh release create "$GITHUB_REF_NAME" artifacts/*.vsix --verify-tag --generate-notes --title "ReconcileDB for VS Code $VERSION"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            ASSET_NAME=$(basename artifacts/*.vsix)
+            if gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' | grep -Fxq "$ASSET_NAME"; then
+              echo "GitHub release already has $ASSET_NAME."
+            else
+              gh release upload "$GITHUB_REF_NAME" artifacts/*.vsix
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/*.vsix --verify-tag --generate-notes --title "ReconcileDB for VS Code $VERSION"
+          fi
