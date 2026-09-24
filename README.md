@@ -21,6 +21,16 @@ The comparison view puts the decision-making details together before you run a m
 3. For a long text field, switch its view from **Raw text** to **Pretty JSON**, **Pretty HTML**, or **Rendered HTML**. JSON and HTML suggestions help you find a useful view, but the choice stays yours.
 4. Expand **Exact source and target values** whenever you need to inspect the original data, then review the generated migration SQL before applying anything.
 
+These screenshots show the actual comparison view with fictional sample data:
+
+**Pretty JSON:** line-level changes in a structured text column, alongside the row list and change filters.
+
+![Pretty JSON diff for a customer row](docs/images/compare-pretty-json.png)
+
+**Rendered HTML:** isolated before-and-after previews of an HTML text column.
+
+![Rendered HTML previews for a customer row](docs/images/compare-rendered-html.png)
+
 Field diffs use [Pierre Diffs](https://github.com/pierrecomputer/pierre). The row list stays compact, and full field values are loaded only for the row you select. Formatting runs on demand, so large JSON or HTML columns do not need to be prettified just to browse the results.
 
 The rendered HTML view is an isolated visual preview: it omits scripts, navigation, forms, images, and external styles. Views are **display-only**—comparison and migration always use the exact stored values. Values over 2 MB remain available in Raw text instead of being formatted or previewed.
