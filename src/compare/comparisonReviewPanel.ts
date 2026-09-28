@@ -103,7 +103,7 @@ export const createComparisonReviewHtml = (webview: Webview, extensionUri: Uri, 
         .pierre-error { margin: 0; padding: 10px; color: var(--vscode-errorForeground); white-space: pre-wrap; }
         .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .preview-side + .preview-side { border-left: 1px solid var(--vscode-panel-border); }
-        .preview-frame { display: block; width: 100%; height: 300px; border: 0; background: white; pointer-events: none; }
+        .preview-frame { display: block; width: 100%; height: 300px; border: 0; background: white; }
         .preview-hint { padding: 7px 10px; color: var(--vscode-descriptionForeground); font-size: 11px; }
         .value-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
         .value-side + .value-side { border-left: 1px solid var(--vscode-panel-border); }
