@@ -1,5 +1,9 @@
 # ReconcileDB for VS Code
 
+## 1.1.2
+
+- Restore scrolling inside rendered HTML previews for long text fields.
+
 ## 1.1.1
 
 - Add screenshot examples and a step-by-step guide for the row-first comparison review.
